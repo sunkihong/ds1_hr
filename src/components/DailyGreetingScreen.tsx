@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Staff, ClinicNotice } from '../types';
+import { Staff, ClinicNotice, ClinicHoliday } from '../types';
 import {
   Sparkles,
   ArrowRight,
@@ -11,17 +11,21 @@ import {
   ChevronRight,
   Smile,
   Megaphone,
+  Sun,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface DailyGreetingScreenProps {
   currentStaff: Staff | null;
   notices: ClinicNotice[];
+  holidays?: ClinicHoliday[];
   onSkip: () => void;
 }
 
 export const DailyGreetingScreen: React.FC<DailyGreetingScreenProps> = ({
   currentStaff,
   notices,
+  holidays = [],
   onSkip,
 }) => {
   const [dontShowToday, setDontShowToday] = useState(false);
@@ -167,6 +171,54 @@ export const DailyGreetingScreen: React.FC<DailyGreetingScreenProps> = ({
             )}
           </h2>
         </div>
+
+        {/* Special Holiday / Operating notice for Today */}
+        {(() => {
+          const todayStr = today.toISOString().split('T')[0];
+          const todayHoliday = holidays.find((h) => h.date === todayStr);
+          if (!todayHoliday) return null;
+
+          return (
+            <div
+              className={`rounded-2xl p-3.5 border shadow-xs ${
+                todayHoliday.type === '반일진료'
+                  ? 'bg-amber-50 border-amber-300 text-amber-950'
+                  : todayHoliday.type === '전체휴진'
+                  ? 'bg-rose-50 border-rose-300 text-rose-950'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">
+                  {todayHoliday.type === '반일진료' ? '☀️' : todayHoliday.type === '전체휴진' ? '🌴' : '🏥'}
+                </span>
+                <span className="text-[11px] font-black uppercase tracking-wider">
+                  당산원치과 진료 일정 안내
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto ${
+                    todayHoliday.type === '반일진료'
+                      ? 'bg-amber-500 text-white'
+                      : todayHoliday.type === '전체휴진'
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-emerald-600 text-white'
+                  }`}
+                >
+                  {todayHoliday.type}
+                </span>
+              </div>
+              <p className="text-xs font-semibold leading-relaxed">
+                오늘은 <strong className="underline underline-offset-2">{todayHoliday.name}</strong>입니다.{' '}
+                {todayHoliday.type === '반일진료'
+                  ? `공휴일이지만 치과 집중 반일진료(${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '13:30'})가 진행됩니다.`
+                  : todayHoliday.type === '전체휴진'
+                  ? '당산원치과 전체 휴진일입니다.'
+                  : `치과 정상진료(${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '18:30'})일입니다.`}
+                {todayHoliday.memo ? ` (${todayHoliday.memo})` : ''}
+              </p>
+            </div>
+          );
+        })()}
 
         {/* 1. Personalized Profile & Daily Dental Fortune Card */}
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-sky-100/80 relative overflow-hidden">

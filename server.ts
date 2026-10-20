@@ -77,9 +77,23 @@ export interface ClinicSettings {
   lunchEnd: string; // "14:00"
   nightClinicDays: string[]; // e.g. ["화", "목"]
   nightClinicCloseTime: string; // "20:30"
+  saturdayType?: '반일진료' | '정상진료' | '전체휴진';
+  saturdayCloseTime?: string;
+  sundayType?: '전체휴진' | '반일진료' | '정상진료';
   address: string;
   phone: string;
   adminPin?: string;
+}
+
+export interface ClinicHoliday {
+  id: string;
+  date: string; // YYYY-MM-DD
+  name: string;
+  type: '전체휴진' | '반일진료' | '정상진료' | '단축진료';
+  openTime?: string;
+  closeTime?: string;
+  isPublicHoliday?: boolean;
+  memo?: string;
 }
 
 export interface DatabaseSchema {
@@ -88,6 +102,7 @@ export interface DatabaseSchema {
   attendance: AttendanceRecord[];
   schedules: ScheduleEvent[];
   notices: ClinicNotice[];
+  holidays: ClinicHoliday[];
 }
 
 // 10 Dental clinic staff initial preset
@@ -222,6 +237,9 @@ const initialSettings: ClinicSettings = {
   lunchEnd: '14:00',
   nightClinicDays: ['화', '목'],
   nightClinicCloseTime: '20:30',
+  saturdayType: '반일진료',
+  saturdayCloseTime: '13:30',
+  sundayType: '전체휴진',
   address: '서울특별시 영등포구 당산로 123 메디컬타워 4층',
   phone: '02-2633-2875',
 };
@@ -358,12 +376,38 @@ function getInitialData(): DatabaseSchema {
     },
   ];
 
+  const defaultHolidays: ClinicHoliday[] = [
+    { id: 'hol-01', date: '2026-01-01', name: '신정 (새해)', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-02', date: '2026-02-16', name: '설날 연휴', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-03', date: '2026-02-17', name: '설날 당일', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-04', date: '2026-02-18', name: '설날 연휴', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-05', date: '2026-03-01', name: '삼일절', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '공휴일 오전 집중진료' },
+    { id: 'hol-06', date: '2026-03-02', name: '삼일절 대체공휴일', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '대체공휴일 오전 반일진료' },
+    { id: 'hol-07', date: '2026-05-05', name: '어린이날', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-08', date: '2026-05-24', name: '부처님오신날', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-09', date: '2026-05-25', name: '부처님오신날 대체공휴일', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '대체공휴일 오전 반일진료' },
+    { id: 'hol-10', date: '2026-06-06', name: '현충일', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '공휴일 오전 반일진료' },
+    { id: 'hol-11', date: '2026-08-03', name: '당산원치과 여름정기휴진', type: '전체휴진', isPublicHoliday: false, memo: '치과 여름 정기 하계휴가' },
+    { id: 'hol-12', date: '2026-08-04', name: '당산원치과 여름정기휴진', type: '전체휴진', isPublicHoliday: false, memo: '치과 여름 정기 하계휴가' },
+    { id: 'hol-13', date: '2026-08-15', name: '광복절', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '공휴일 오전 반일진료' },
+    { id: 'hol-14', date: '2026-08-17', name: '광복절 대체공휴일', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '대체공휴일 오전 반일진료' },
+    { id: 'hol-15', date: '2026-09-24', name: '추석 연휴', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-16', date: '2026-09-25', name: '추석 당일', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-17', date: '2026-09-26', name: '추석 연휴', type: '전체휴진', isPublicHoliday: true },
+    { id: 'hol-18', date: '2026-10-03', name: '개천절', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '공휴일 오전 반일진료' },
+    { id: 'hol-19', date: '2026-10-05', name: '개천절 대체공휴일', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '대체공휴일 오전 반일진료' },
+    { id: 'hol-20', date: '2026-10-09', name: '한글날', type: '반일진료', openTime: '09:30', closeTime: '13:30', isPublicHoliday: true, memo: '공휴일 오전 반일진료' },
+    { id: 'hol-21', date: '2026-11-15', name: '당산원치과 개원기념일', type: '전체휴진', isPublicHoliday: false, memo: '당산원치과 특별 창립기념일 휴진' },
+    { id: 'hol-22', date: '2026-12-25', name: '성탄절', type: '전체휴진', isPublicHoliday: true },
+  ];
+
   return {
     settings: initialSettings,
     staff: initialStaff,
     attendance: sampleAttendance,
     schedules: sampleSchedules,
     notices: sampleNotices,
+    holidays: defaultHolidays,
   };
 }
 
@@ -379,7 +423,13 @@ function readDB(): DatabaseSchema {
       return initData;
     }
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed.holidays || parsed.holidays.length === 0) {
+      const init = getInitialData();
+      parsed.holidays = init.holidays;
+      writeDB(parsed);
+    }
+    return parsed;
   } catch (err) {
     console.error('Error reading database, reverting to initial:', err);
     return getInitialData();
@@ -458,6 +508,92 @@ app.delete('/api/staff/:id', (req: Request, res: Response) => {
   db.staff = db.staff.filter((s) => s.id !== req.params.id);
   writeDB(db);
   res.json({ success: true });
+});
+
+// 2-1. Dental Clinic Holidays & Special Treatment Operating Schedule
+app.get('/api/holidays', (req: Request, res: Response) => {
+  const db = readDB();
+  const { year, month } = req.query;
+  let holidays = [...(db.holidays || [])];
+
+  if (year && typeof year === 'string') {
+    holidays = holidays.filter((h) => h.date.startsWith(year));
+  }
+  if (month && typeof month === 'string') {
+    holidays = holidays.filter((h) => h.date.startsWith(month));
+  }
+
+  holidays.sort((a, b) => a.date.localeCompare(b.date));
+  res.json(holidays);
+});
+
+app.post('/api/holidays', (req: Request, res: Response) => {
+  const { date, name, type, openTime, closeTime, isPublicHoliday, memo } = req.body;
+  if (!date || !name || !type) {
+    return res.status(400).json({ error: '날짜, 명칭, 진료 유형은 필수 항목입니다.' });
+  }
+
+  const db = readDB();
+  if (!db.holidays) db.holidays = [];
+
+  const existingIndex = db.holidays.findIndex((h) => h.date === date);
+  const holidayData: ClinicHoliday = {
+    id: existingIndex >= 0 ? db.holidays[existingIndex].id : `hol-${Date.now()}`,
+    date,
+    name,
+    type,
+    openTime: type === '반일진료' ? (openTime || '09:30') : openTime,
+    closeTime: type === '반일진료' ? (closeTime || '13:30') : closeTime,
+    isPublicHoliday: isPublicHoliday !== undefined ? !!isPublicHoliday : false,
+    memo: memo || '',
+  };
+
+  if (existingIndex >= 0) {
+    db.holidays[existingIndex] = holidayData;
+  } else {
+    db.holidays.push(holidayData);
+  }
+
+  db.holidays.sort((a, b) => a.date.localeCompare(b.date));
+  writeDB(db);
+  res.status(201).json(holidayData);
+});
+
+app.put('/api/holidays/:id', (req: Request, res: Response) => {
+  const db = readDB();
+  if (!db.holidays) db.holidays = [];
+  const index = db.holidays.findIndex((h) => h.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '휴무일 설정을 찾을 수 없습니다.' });
+  }
+
+  const current = db.holidays[index];
+  const updated: ClinicHoliday = {
+    ...current,
+    ...req.body,
+    id: current.id,
+  };
+
+  db.holidays[index] = updated;
+  db.holidays.sort((a, b) => a.date.localeCompare(b.date));
+  writeDB(db);
+  res.json({ success: true, holiday: updated });
+});
+
+app.delete('/api/holidays/:id', (req: Request, res: Response) => {
+  const db = readDB();
+  if (!db.holidays) db.holidays = [];
+  db.holidays = db.holidays.filter((h) => h.id !== req.params.id);
+  writeDB(db);
+  res.json({ success: true });
+});
+
+app.post('/api/holidays/reset', (_req: Request, res: Response) => {
+  const db = readDB();
+  const initial = getInitialData();
+  db.holidays = initial.holidays;
+  writeDB(db);
+  res.json({ success: true, holidays: db.holidays });
 });
 
 // 3. Attendance Management

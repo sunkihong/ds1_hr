@@ -1,4 +1,4 @@
-import { ClinicNotice, ClinicSettings, ScheduleEvent, Staff, TodayStaffStatus, AttendanceRecord } from './types';
+import { ClinicNotice, ClinicSettings, ScheduleEvent, Staff, TodayStaffStatus, AttendanceRecord, ClinicHoliday } from './types';
 
 const BASE_URL = '';
 
@@ -224,4 +224,71 @@ export async function adminDeleteAttendance(id: string): Promise<{ success: bool
   if (!res.ok) throw new Error('근태 기록 삭제에 실패했습니다.');
   return res.json();
 }
+
+// Clinic Holidays & Special Treatment Schedule API
+export async function fetchHolidays(year?: string | number, month?: string): Promise<ClinicHoliday[]> {
+  let url = `${BASE_URL}/api/holidays`;
+  const params: string[] = [];
+  if (year) params.push(`year=${year}`);
+  if (month) params.push(`month=${month}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('휴무일 및 진료일정을 불러오지 못했습니다.');
+  return res.json();
+}
+
+export async function createHoliday(data: {
+  date: string;
+  name: string;
+  type: '전체휴진' | '반일진료' | '정상진료' | '단축진료';
+  openTime?: string;
+  closeTime?: string;
+  isPublicHoliday?: boolean;
+  memo?: string;
+}): Promise<ClinicHoliday> {
+  const res = await fetch(`${BASE_URL}/api/holidays`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '휴무일 저장에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function updateHoliday(
+  id: string,
+  updates: Partial<ClinicHoliday>
+): Promise<{ success: boolean; holiday: ClinicHoliday }> {
+  const res = await fetch(`${BASE_URL}/api/holidays/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '휴무일 수정에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function deleteHoliday(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/holidays/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('휴무일 삭제에 실패했습니다.');
+  return res.json();
+}
+
+export async function resetHolidays(): Promise<{ success: boolean; holidays: ClinicHoliday[] }> {
+  const res = await fetch(`${BASE_URL}/api/holidays/reset`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('휴무일 초기화에 실패했습니다.');
+  return res.json();
+}
+
 

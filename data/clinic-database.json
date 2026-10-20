@@ -317,5 +317,191 @@
       "createdAt": "2026-10-20T13:12:29.577Z",
       "pinned": false
     }
+  ],
+  "holidays": [
+    {
+      "id": "hol-01",
+      "date": "2026-01-01",
+      "name": "신정 (새해)",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-02",
+      "date": "2026-02-16",
+      "name": "설날 연휴",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-03",
+      "date": "2026-02-17",
+      "name": "설날 당일",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-04",
+      "date": "2026-02-18",
+      "name": "설날 연휴",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-05",
+      "date": "2026-03-01",
+      "name": "삼일절",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "공휴일 오전 집중진료"
+    },
+    {
+      "id": "hol-06",
+      "date": "2026-03-02",
+      "name": "삼일절 대체공휴일",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "대체공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-07",
+      "date": "2026-05-05",
+      "name": "어린이날",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-08",
+      "date": "2026-05-24",
+      "name": "부처님오신날",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-09",
+      "date": "2026-05-25",
+      "name": "부처님오신날 대체공휴일",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "대체공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-10",
+      "date": "2026-06-06",
+      "name": "현충일",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-11",
+      "date": "2026-08-03",
+      "name": "당산원치과 여름정기휴진",
+      "type": "전체휴진",
+      "isPublicHoliday": false,
+      "memo": "치과 여름 정기 하계휴가"
+    },
+    {
+      "id": "hol-12",
+      "date": "2026-08-04",
+      "name": "당산원치과 여름정기휴진",
+      "type": "전체휴진",
+      "isPublicHoliday": false,
+      "memo": "치과 여름 정기 하계휴가"
+    },
+    {
+      "id": "hol-13",
+      "date": "2026-08-15",
+      "name": "광복절",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-14",
+      "date": "2026-08-17",
+      "name": "광복절 대체공휴일",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "대체공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-15",
+      "date": "2026-09-24",
+      "name": "추석 연휴",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-16",
+      "date": "2026-09-25",
+      "name": "추석 당일",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-17",
+      "date": "2026-09-26",
+      "name": "추석 연휴",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    },
+    {
+      "id": "hol-18",
+      "date": "2026-10-03",
+      "name": "개천절",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-19",
+      "date": "2026-10-05",
+      "name": "개천절 대체공휴일",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "대체공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-20",
+      "date": "2026-10-09",
+      "name": "한글날",
+      "type": "반일진료",
+      "openTime": "09:30",
+      "closeTime": "13:30",
+      "isPublicHoliday": true,
+      "memo": "공휴일 오전 반일진료"
+    },
+    {
+      "id": "hol-21",
+      "date": "2026-11-15",
+      "name": "당산원치과 개원기념일",
+      "type": "전체휴진",
+      "isPublicHoliday": false,
+      "memo": "당산원치과 특별 창립기념일 휴진"
+    },
+    {
+      "id": "hol-22",
+      "date": "2026-12-25",
+      "name": "성탄절",
+      "type": "전체휴진",
+      "isPublicHoliday": true
+    }
   ]
 }

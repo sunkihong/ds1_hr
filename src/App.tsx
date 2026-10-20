@@ -5,6 +5,7 @@ import {
   ScheduleEvent,
   Staff,
   TodayStaffStatus,
+  ClinicHoliday,
 } from './types';
 import {
   fetchClinicSettings,
@@ -13,6 +14,7 @@ import {
   fetchStaffList,
   fetchTodayAttendance,
   fetchAttendanceHistory,
+  fetchHolidays,
 } from './api';
 import { AttendanceRecord } from './types';
 import { Header } from './components/Header';
@@ -59,6 +61,7 @@ export default function App() {
   const [presetScheduleDate, setPresetScheduleDate] = useState<string | undefined>();
   const [syncError, setSyncError] = useState<string | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [holidays, setHolidays] = useState<ClinicHoliday[]>([]);
   const [showGreeting, setShowGreeting] = useState<boolean>(() => {
     const skipDate = localStorage.getItem('dangsan_greeting_skip_date');
     const todayStr = new Date().toISOString().split('T')[0];
@@ -71,7 +74,7 @@ export default function App() {
     setSyncError(null);
     try {
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const [settingsRes, staffData, attendanceData, scheduleData, noticeData, historyData] =
+      const [settingsRes, staffData, attendanceData, scheduleData, noticeData, historyData, holidayData] =
         await Promise.all([
           fetchClinicSettings(),
           fetchStaffList(),
@@ -79,6 +82,7 @@ export default function App() {
           fetchSchedules(),
           fetchNotices(),
           fetchAttendanceHistory(currentMonth),
+          fetchHolidays(),
         ]);
 
       setClinicSettings(settingsRes.settings);
@@ -87,6 +91,7 @@ export default function App() {
       setSchedules(scheduleData);
       setNotices(noticeData);
       setAttendanceHistory(historyData);
+      setHolidays(holidayData);
       setLastSyncedTime(new Date());
 
       // If no current staff selected yet, load from localStorage or default to staff-06 (윤지민 위생사)
@@ -167,6 +172,7 @@ export default function App() {
       <DailyGreetingScreen
         currentStaff={currentStaff}
         notices={notices}
+        holidays={holidays}
         onSkip={() => setShowGreeting(false)}
       />
     );
@@ -218,6 +224,7 @@ export default function App() {
           <TodayAttendanceView
             currentStaff={currentStaff}
             todayRecords={todayRecords}
+            holidays={holidays}
             onRefresh={() => loadAllData()}
             onOpenScheduleAdd={() => handleOpenScheduleAdd()}
             onOpenNotices={() => setCurrentTab('notices')}
@@ -229,6 +236,7 @@ export default function App() {
           <SharedCalendarView
             schedules={schedules}
             staffList={staffList}
+            holidays={holidays}
             onOpenScheduleAdd={handleOpenScheduleAdd}
             onRefresh={() => loadAllData()}
             currentStaff={currentStaff}
@@ -251,6 +259,7 @@ export default function App() {
             attendanceRecords={attendanceHistory}
             todayRecords={todayRecords}
             clinicSettings={clinicSettings}
+            holidays={holidays}
             onRefresh={() => loadAllData()}
             onSelectStaff={handleSelectStaff}
           />

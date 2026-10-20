@@ -51,6 +51,17 @@ export interface ClinicNotice {
   pinned?: boolean;
 }
 
+export interface ClinicHoliday {
+  id: string;
+  date: string; // YYYY-MM-DD
+  name: string; // e.g. "삼일절 반일진료", "개천절", "치과 개원기념일"
+  type: '전체휴진' | '반일진료' | '정상진료' | '단축진료';
+  openTime?: string; // "09:30"
+  closeTime?: string; // "13:30"
+  isPublicHoliday?: boolean;
+  memo?: string;
+}
+
 export interface ClinicSettings {
   name: string;
   openTime: string;
@@ -59,6 +70,9 @@ export interface ClinicSettings {
   lunchEnd: string;
   nightClinicDays: string[];
   nightClinicCloseTime: string;
+  saturdayType?: '반일진료' | '정상진료' | '전체휴진';
+  saturdayCloseTime?: string;
+  sundayType?: '전체휴진' | '반일진료' | '정상진료';
   address: string;
   phone: string;
   adminPin?: string;

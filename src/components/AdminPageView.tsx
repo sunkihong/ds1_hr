@@ -5,6 +5,7 @@ import {
   AttendanceRecord,
   ClinicSettings,
   TodayStaffStatus,
+  ClinicHoliday,
 } from '../types';
 import {
   adminUpdateScheduleStatus,
@@ -15,6 +16,10 @@ import {
   updateStaffMember,
   deleteStaffMember,
   updateClinicSettings,
+  createHoliday,
+  updateHoliday,
+  deleteHoliday,
+  resetHolidays,
 } from '../api';
 import {
   ShieldAlert,
@@ -35,6 +40,12 @@ import {
   Building,
   KeyRound,
   FileCheck,
+  Sun,
+  Moon,
+  CalendarDays,
+  Check,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 
 interface AdminPageViewProps {
@@ -44,11 +55,12 @@ interface AdminPageViewProps {
   attendanceRecords: AttendanceRecord[];
   todayRecords: TodayStaffStatus[];
   clinicSettings: ClinicSettings;
+  holidays?: ClinicHoliday[];
   onRefresh: () => void;
   onSelectStaff: (staff: Staff) => void;
 }
 
-type AdminSubTab = 'approvals' | 'abnormal' | 'staff' | 'settings';
+type AdminSubTab = 'approvals' | 'abnormal' | 'staff' | 'holidays' | 'settings';
 
 export const AdminPageView: React.FC<AdminPageViewProps> = ({
   currentStaff,
@@ -57,6 +69,7 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
   attendanceRecords,
   todayRecords,
   clinicSettings,
+  holidays = [],
   onRefresh,
   onSelectStaff,
 }) => {
@@ -112,6 +125,22 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7));
+
+  // Holiday management state
+  const [holidayFilter, setHolidayFilter] = useState<'all' | 'half' | 'closed' | 'custom' | 'public'>('all');
+  const [holidaySearchQuery, setHolidaySearchQuery] = useState('');
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState<ClinicHoliday | null>(null);
+  const [holidayForm, setHolidayForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    name: '',
+    type: '반일진료' as ClinicHoliday['type'],
+    openTime: '09:30',
+    closeTime: '13:30',
+    isPublicHoliday: true,
+    memo: '공휴일 오전 집중 반일진료',
+  });
+  const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
   // --- Handlers: Authentication ---
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -287,6 +316,124 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
     }
   };
 
+  // --- Handlers: Holiday & Clinic Schedule Management ---
+  const handleOpenAddHoliday = (presetDate?: string) => {
+    setEditingHoliday(null);
+    setHolidayForm({
+      date: presetDate || new Date().toISOString().split('T')[0],
+      name: '',
+      type: '반일진료',
+      openTime: '09:30',
+      closeTime: '13:30',
+      isPublicHoliday: true,
+      memo: '공휴일 오전 집중 반일진료',
+    });
+    setShowHolidayModal(true);
+  };
+
+  const handleOpenEditHoliday = (h: ClinicHoliday) => {
+    setEditingHoliday(h);
+    setHolidayForm({
+      date: h.date,
+      name: h.name,
+      type: h.type,
+      openTime: h.openTime || '09:30',
+      closeTime: h.closeTime || (h.type === '반일진료' ? '13:30' : '18:30'),
+      isPublicHoliday: h.isPublicHoliday !== undefined ? !!h.isPublicHoliday : true,
+      memo: h.memo || '',
+    });
+    setShowHolidayModal(true);
+  };
+
+  const handleHolidayFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!holidayForm.name.trim()) {
+      alert('휴무일 또는 진료일정 명칭을 입력해주세요.');
+      return;
+    }
+    setIsSavingHoliday(true);
+    try {
+      if (editingHoliday) {
+        await updateHoliday(editingHoliday.id, holidayForm);
+      } else {
+        await createHoliday(holidayForm);
+      }
+      setShowHolidayModal(false);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '휴무일 저장에 실패했습니다.');
+    } finally {
+      setIsSavingHoliday(false);
+    }
+  };
+
+  const handleQuickToggleHoliday = async (
+    h: ClinicHoliday,
+    nextType: '전체휴진' | '반일진료' | '정상진료'
+  ) => {
+    try {
+      await updateHoliday(h.id, {
+        type: nextType,
+        openTime: nextType === '반일진료' ? '09:30' : nextType === '정상진료' ? '09:30' : undefined,
+        closeTime: nextType === '반일진료' ? '13:30' : nextType === '정상진료' ? '18:30' : undefined,
+        memo:
+          nextType === '반일진료'
+            ? '공휴일 오전 집중 반일진료'
+            : nextType === '전체휴진'
+            ? '치과 전체 휴진'
+            : '치과 정상 진료',
+      });
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '휴무일 상태 변경에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string, name: string) => {
+    if (!confirm(`'${name}' 휴무일 설정을 삭제하시겠습니까?`)) return;
+    try {
+      await deleteHoliday(id);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '삭제에 실패했습니다.');
+    }
+  };
+
+  const handleResetHolidays = async () => {
+    if (
+      !confirm(
+        '한국 달력 공휴일 및 당산원치과 기본 진료일정(삼일절, 현충일, 광복절, 개천절, 한글날 반일진료 등)으로 초기화하시겠습니까?'
+      )
+    ) {
+      return;
+    }
+    try {
+      await resetHolidays();
+      alert('치과 휴무일 및 공휴일 반일진료 기본 설정이 성공적으로 초기화되었습니다.');
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '초기화에 실패했습니다.');
+    }
+  };
+
+  // Displayed holidays according to filter and search
+  const displayedHolidays = useMemo(() => {
+    return (holidays || []).filter((h) => {
+      if (holidaySearchQuery.trim()) {
+        const query = holidaySearchQuery.toLowerCase();
+        const matchesName = h.name.toLowerCase().includes(query);
+        const matchesDate = h.date.includes(query);
+        const matchesMemo = (h.memo || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesDate && !matchesMemo) return false;
+      }
+      if (holidayFilter === 'half') return h.type === '반일진료';
+      if (holidayFilter === 'closed') return h.type === '전체휴진';
+      if (holidayFilter === 'custom') return !h.isPublicHoliday;
+      if (holidayFilter === 'public') return !!h.isPublicHoliday;
+      return true;
+    });
+  }, [holidays, holidayFilter, holidaySearchQuery]);
+
   // --- Data Calculations ---
   // Pending schedules
   const pendingSchedules = useMemo(() => {
@@ -412,7 +559,7 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
         </div>
 
         {/* Admin Navigation Pills */}
-        <div className="grid grid-cols-4 gap-1.5 mt-3 pt-2 border-t border-white/15">
+        <div className="grid grid-cols-5 gap-1 mt-3 pt-2 border-t border-white/15">
           {[
             {
               id: 'approvals' as AdminSubTab,
@@ -422,7 +569,7 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
             },
             {
               id: 'abnormal' as AdminSubTab,
-              label: '비정상 근태',
+              label: '근태 소명',
               badge: abnormalAttendances.length > 0 ? abnormalAttendances.length : undefined,
               badgeColor: 'bg-amber-500',
             },
@@ -433,8 +580,16 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
               badgeColor: 'bg-sky-600',
             },
             {
+              id: 'holidays' as AdminSubTab,
+              label: '휴무일 지정',
+              badge: holidays.filter((h) => h.type === '반일진료').length > 0
+                ? `${holidays.filter((h) => h.type === '반일진료').length}반일`
+                : undefined,
+              badgeColor: 'bg-amber-500',
+            },
+            {
               id: 'settings' as AdminSubTab,
-              label: '운영·설정',
+              label: '치과 설정',
             },
           ].map((tab) => (
             <button
@@ -841,7 +996,304 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
       )}
 
       {/* ========================================================
-          SUB-TAB 4: 치과 운영 설정 & 마스터 PIN & CSV 다운로드
+          SUB-TAB 4: 치과 휴무일 및 공휴일 반일진료 지정
+         ======================================================== */}
+      {activeSubTab === 'holidays' && (
+        <div className="space-y-4">
+          {/* Header Info & Actions */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-slate-900 font-bold text-sm">
+                  <CalendarDays className="w-4 h-4 text-sky-600" />
+                  <h3>치과 휴무일 및 공휴일 반일진료 지정</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  한국 달력 공휴일 중 당산원치과의 오전 반일진료일 및 전체 휴진일, 치과 지정 특별휴무를 관리합니다.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetHolidays}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1 font-semibold text-xs transition active:scale-95"
+                  title="한국 공휴일 및 치과 기본 설정으로 복원"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  기본값 복원
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddHoliday()}
+                  className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white flex items-center gap-1 font-bold text-xs shadow-xs transition active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  휴무·반일진료 추가
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-2.5 text-center">
+                <span className="text-[10px] text-amber-800 font-bold flex items-center justify-center gap-1">
+                  <Sun className="w-3 h-3 text-amber-600" /> 공휴일 반일진료
+                </span>
+                <div className="text-lg font-black text-amber-950 mt-0.5 tabular-nums">
+                  {holidays.filter((h) => h.type === '반일진료').length}
+                  <span className="text-xs font-normal ml-0.5">일</span>
+                </div>
+                <span className="text-[9px] text-amber-700">09:30~13:30 오전진료</span>
+              </div>
+
+              <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-2.5 text-center">
+                <span className="text-[10px] text-rose-800 font-bold flex items-center justify-center gap-1">
+                  <Moon className="w-3 h-3 text-rose-600" /> 치과 전체휴진
+                </span>
+                <div className="text-lg font-black text-rose-950 mt-0.5 tabular-nums">
+                  {holidays.filter((h) => h.type === '전체휴진').length}
+                  <span className="text-xs font-normal ml-0.5">일</span>
+                </div>
+                <span className="text-[9px] text-rose-700">설·추석·신정 등 휴무</span>
+              </div>
+
+              <div className="bg-sky-50/70 border border-sky-200/80 rounded-2xl p-2.5 text-center">
+                <span className="text-[10px] text-sky-800 font-bold flex items-center justify-center gap-1">
+                  <Sparkles className="w-3 h-3 text-sky-600" /> 치과 자체지정
+                </span>
+                <div className="text-lg font-black text-sky-950 mt-0.5 tabular-nums">
+                  {holidays.filter((h) => !h.isPublicHoliday).length}
+                  <span className="text-xs font-normal ml-0.5">일</span>
+                </div>
+                <span className="text-[9px] text-sky-700">개원기념일, 여름휴가</span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 text-center">
+                <span className="text-[10px] text-slate-700 font-bold flex items-center justify-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-600" /> 총 관리 일정
+                </span>
+                <div className="text-lg font-black text-slate-900 mt-0.5 tabular-nums">
+                  {holidays.length}
+                  <span className="text-xs font-normal ml-0.5">일</span>
+                </div>
+                <span className="text-[9px] text-slate-500">2026/2027 연간</span>
+              </div>
+            </div>
+
+            {/* Weekend Operating Policy Fast Info */}
+            <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🏥</span>
+                <div>
+                  <span className="font-bold text-xs text-slate-800 block">
+                    주말 정기 진료 기준: 토요일 반일진료(09:30~13:30) · 일요일 정기휴진
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    각 날짜 우측의 버튼([☀️ 반일진료] / [🌴 휴진] / [🏥 정상])을 누르면 해당 공휴일의 치과 진료형태가 즉시 변경됩니다.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter pills & search */}
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                {[
+                  { id: 'all', label: `전체 (${holidays.length})` },
+                  { id: 'half', label: `☀️ 반일진료 (${holidays.filter((h) => h.type === '반일진료').length})` },
+                  { id: 'closed', label: `🌴 전체휴진 (${holidays.filter((h) => h.type === '전체휴진').length})` },
+                  { id: 'custom', label: `치과지정 (${holidays.filter((h) => !h.isPublicHoliday).length})` },
+                  { id: 'public', label: `법정공휴일 (${holidays.filter((h) => h.isPublicHoliday).length})` },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setHolidayFilter(f.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                      holidayFilter === f.id
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                placeholder="명칭 또는 날짜 검색 (예: 삼일절, 10-03)"
+                value={holidaySearchQuery}
+                onChange={(e) => setHolidaySearchQuery(e.target.value)}
+                className="px-2.5 py-1 rounded-xl border border-slate-200 text-xs w-full sm:w-48 bg-white"
+              />
+            </div>
+          </div>
+
+          {/* Holiday List */}
+          {displayedHolidays.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400">
+              <Calendar className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="font-semibold text-xs">일치하는 휴무일 또는 진료일정이 없습니다.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setHolidayFilter('all');
+                  setHolidaySearchQuery('');
+                }}
+                className="mt-2 text-xs text-sky-600 font-bold underline"
+              >
+                필터 초기화
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {displayedHolidays.map((h) => {
+                const dateObj = new Date(h.date);
+                const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                const dayOfWeek = dayNames[dateObj.getDay()];
+                const isSunday = dateObj.getDay() === 0;
+                const isSaturday = dateObj.getDay() === 6;
+
+                return (
+                  <div
+                    key={h.id}
+                    className={`bg-white rounded-2xl border p-3.5 transition shadow-2xs ${
+                      h.type === '반일진료'
+                        ? 'border-amber-200 hover:border-amber-300'
+                        : h.type === '전체휴진'
+                        ? 'border-rose-200 hover:border-rose-300'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      {/* Left: Date, Name, and Badges */}
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center shrink-0 border ${
+                            h.type === '반일진료'
+                              ? 'bg-amber-50 text-amber-900 border-amber-200'
+                              : h.type === '전체휴진'
+                              ? 'bg-rose-50 text-rose-900 border-rose-200'
+                              : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                          }`}
+                        >
+                          <span className="text-[10px] font-bold leading-none">{dateObj.getMonth() + 1}월</span>
+                          <span className="text-base font-extrabold leading-tight">{dateObj.getDate()}</span>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-xs text-slate-900">{h.name}</span>
+                            <span
+                              className={`text-[10px] font-bold ${
+                                isSunday ? 'text-rose-600' : isSaturday ? 'text-sky-600' : 'text-slate-500'
+                              }`}
+                            >
+                              ({dayOfWeek}요일)
+                            </span>
+                            {h.isPublicHoliday ? (
+                              <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-semibold border border-slate-200">
+                                대한민국 공휴일
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-sky-50 text-sky-700 px-1.5 py-0.2 rounded font-semibold border border-sky-200">
+                                치과 자체지정
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-600 mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-slate-500">{h.date}</span>
+                            <span>·</span>
+                            <span className="font-semibold text-slate-800">
+                              {h.type === '반일진료'
+                                ? `오전 반일진료 (${h.openTime || '09:30'} ~ ${h.closeTime || '13:30'})`
+                                : h.type === '전체휴진'
+                                ? '당산원치과 전체 휴진'
+                                : `정상진료 (${h.openTime || '09:30'} ~ ${h.closeTime || '18:30'})`}
+                            </span>
+                            {h.memo && (
+                              <>
+                                <span>·</span>
+                                <span className="text-slate-500 italic text-[10px]">{h.memo}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Quick 1-Tap Policy Switcher Buttons & Edit/Delete */}
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        {/* Quick Toggle: 반일진료 vs 전체휴진 vs 정상진료 */}
+                        <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleHoliday(h, '반일진료')}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                              h.type === '반일진료'
+                                ? 'bg-amber-500 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="반일진료(09:30~13:30)로 즉시 변경"
+                          >
+                            ☀️ 반일진료
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleHoliday(h, '전체휴진')}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                              h.type === '전체휴진'
+                                ? 'bg-rose-500 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="전체휴진으로 즉시 변경"
+                          >
+                            🌴 휴진
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleHoliday(h, '정상진료')}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                              h.type === '정상진료'
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="정상진료로 즉시 변경"
+                          >
+                            🏥 정상
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditHoliday(h)}
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600"
+                          title="상세 수정"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHoliday(h.id, h.name)}
+                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600"
+                          title="삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================
+          SUB-TAB 5: 치과 운영 설정 & 마스터 PIN & CSV 다운로드
          ======================================================== */}
       {activeSubTab === 'settings' && (
         <div className="space-y-4">
@@ -941,6 +1393,49 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
                   onChange={(e) => setSettingsForm({ ...settingsForm, nightClinicCloseTime: e.target.value })}
                   className="w-full px-3 py-1.5 rounded-xl border border-slate-200 font-mono"
                 />
+              </div>
+
+              {/* Weekend Operating Policy in Settings Form */}
+              <div className="bg-sky-50/70 p-3 rounded-2xl border border-sky-200/80 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-950">
+                  <Sun className="w-4 h-4 text-sky-600" />
+                  <span>주말 기본 진료 방침 (토요일/일요일)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-[11px]">토요일 진료 형태</label>
+                    <select
+                      value={settingsForm.saturdayType || '반일진료'}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, saturdayType: e.target.value as any })}
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="반일진료">오전 반일진료 (09:30~13:30)</option>
+                      <option value="정상진료">정상진료 (09:30~17:00)</option>
+                      <option value="전체휴진">전체휴진</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-[11px]">토요일 마감 시간</label>
+                    <input
+                      type="time"
+                      value={settingsForm.saturdayCloseTime || '13:30'}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, saturdayCloseTime: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 font-mono bg-white"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-slate-700 font-semibold mb-1 text-[11px]">일요일 진료 형태</label>
+                    <select
+                      value={settingsForm.sundayType || '전체휴진'}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, sundayType: e.target.value as any })}
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="전체휴진">전체휴진 (정기 휴무)</option>
+                      <option value="반일진료">오전 반일진료</option>
+                      <option value="정상진료">정상진료</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Master PIN */}
@@ -1216,6 +1711,174 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
                   className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold shadow-sm"
                 >
                   {editingStaff ? '수정 저장' : '등록 완료'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 3: 치과 휴무일 및 반일진료 추가 / 수정 모달 --- */}
+      {showHolidayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 pb-2 border-b border-slate-100 flex items-center gap-1.5">
+              <CalendarDays className="w-4 h-4 text-sky-600" />
+              <span>{editingHoliday ? '치과 휴무일 / 진료일정 수정' : '신규 치과 휴무일 / 반일진료 추가'}</span>
+            </h3>
+
+            <form onSubmit={handleHolidayFormSubmit} className="space-y-3">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">날짜</label>
+                <input
+                  type="date"
+                  value={holidayForm.date}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">명칭</label>
+                <input
+                  type="text"
+                  placeholder="예: 삼일절, 개천절, 치과 개원기념일, 여름정기휴진"
+                  value={holidayForm.name}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200"
+                  required
+                />
+                {/* Fast name chips */}
+                <div className="flex items-center gap-1 overflow-x-auto mt-1.5 pb-0.5">
+                  {[
+                    '삼일절',
+                    '어린이날',
+                    '현충일',
+                    '광복절',
+                    '개천절',
+                    '한글날',
+                    '개원기념일',
+                    '여름정기휴진',
+                    '임시공휴일',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setHolidayForm({ ...holidayForm, name: preset })}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-700 whitespace-nowrap"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">진료 형태</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: '반일진료', label: '☀️ 반일진료', desc: '09:30~13:30' },
+                    { id: '전체휴진', label: '🌴 전체휴진', desc: '진료 없음' },
+                    { id: '정상진료', label: '🏥 정상진료', desc: '09:30~18:30' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() =>
+                        setHolidayForm({
+                          ...holidayForm,
+                          type: t.id as any,
+                          openTime: t.id === '전체휴진' ? '' : '09:30',
+                          closeTime: t.id === '반일진료' ? '13:30' : t.id === '정상진료' ? '18:30' : '',
+                        })
+                      }
+                      className={`p-2 rounded-xl text-center border transition ${
+                        holidayForm.type === t.id
+                          ? t.id === '반일진료'
+                            ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-xs'
+                            : t.id === '전체휴진'
+                            ? 'bg-rose-500 text-white border-rose-600 font-bold shadow-xs'
+                            : 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{t.label}</div>
+                      <div
+                        className={`text-[9px] mt-0.5 ${
+                          holidayForm.type === t.id ? 'text-white/90' : 'text-slate-400'
+                        }`}
+                      >
+                        {t.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {holidayForm.type !== '전체휴진' && (
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-[11px]">진료 시작 시간</label>
+                    <input
+                      type="time"
+                      value={holidayForm.openTime}
+                      onChange={(e) => setHolidayForm({ ...holidayForm, openTime: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 font-mono bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-[11px]">진료 종료 시간</label>
+                    <input
+                      type="time"
+                      value={holidayForm.closeTime}
+                      onChange={(e) => setHolidayForm({ ...holidayForm, closeTime: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 font-mono bg-white"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">운영 메모 / 특이사항</label>
+                <input
+                  type="text"
+                  placeholder="예: 공휴일 오전 집중진료, 점심시간 없음, 당직 2명"
+                  value={holidayForm.memo}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, memo: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isPub"
+                  checked={holidayForm.isPublicHoliday}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, isPublicHoliday: e.target.checked })}
+                  className="w-4 h-4 rounded text-sky-600"
+                />
+                <label htmlFor="isPub" className="text-xs text-slate-700 select-none">
+                  대한민국 법정 공휴일 (달력 빨간 날)
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHolidayModal(false)}
+                  className="flex-1 py-2 bg-slate-100 rounded-xl font-bold text-slate-700"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingHoliday}
+                  className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold shadow-sm"
+                >
+                  {isSavingHoliday ? '저장 중...' : editingHoliday ? '수정 저장' : '등록 완료'}
                 </button>
               </div>
             </form>

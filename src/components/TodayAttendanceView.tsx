@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Staff, TodayStaffStatus, ClinicNotice } from '../types';
+import { Staff, TodayStaffStatus, ClinicNotice, ClinicHoliday } from '../types';
 import { clockIn, clockOut } from '../api';
 import {
   Clock,
@@ -12,11 +12,14 @@ import {
   Sparkles,
   MessageSquare,
   Building,
+  Sun,
+  Coffee,
 } from 'lucide-react';
 
 interface TodayAttendanceViewProps {
   currentStaff: Staff | null;
   todayRecords: TodayStaffStatus[];
+  holidays?: ClinicHoliday[];
   onRefresh: () => void;
   onOpenScheduleAdd: () => void;
   onOpenNotices: () => void;
@@ -26,6 +29,7 @@ interface TodayAttendanceViewProps {
 export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
   currentStaff,
   todayRecords,
+  holidays = [],
   onRefresh,
   onOpenScheduleAdd,
   onOpenNotices,
@@ -125,8 +129,46 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
   const daysOfWeek = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const dateFormatted = `${currentTime.getFullYear()}년 ${currentTime.getMonth() + 1}월 ${currentTime.getDate()}일 ${daysOfWeek[currentTime.getDay()]}`;
 
+  const todayDateStr = currentTime.toISOString().split('T')[0];
+  const todayHoliday = holidays.find((h) => h.date === todayDateStr);
+
   return (
     <div className="space-y-4 pb-20">
+      {/* Today Special Holiday / Operating Alert Banner */}
+      {todayHoliday && (
+        <div
+          className={`rounded-3xl p-4 shadow-sm border flex items-start gap-3 ${
+            todayHoliday.type === '반일진료'
+              ? 'bg-amber-500 text-white border-amber-600'
+              : todayHoliday.type === '전체휴진'
+              ? 'bg-rose-500 text-white border-rose-600'
+              : 'bg-emerald-600 text-white border-emerald-700'
+          }`}
+        >
+          <div className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 text-lg font-bold">
+            {todayHoliday.type === '반일진료' ? '☀️' : todayHoliday.type === '전체휴진' ? '🌴' : '🏥'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-black uppercase tracking-wider bg-black/15 px-2 py-0.5 rounded-full">
+                치과 진료일정 안내
+              </span>
+              <span className="text-xs font-extrabold">
+                {todayHoliday.name} · {todayHoliday.type}
+              </span>
+            </div>
+            <p className="text-xs text-white/95 mt-1 leading-relaxed font-medium">
+              {todayHoliday.type === '반일진료'
+                ? `공휴일이지만 치과 집중 반일진료가 운영됩니다 (${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '13:30'}). 오후 진료는 없습니다.`
+                : todayHoliday.type === '전체휴진'
+                ? '오늘은 당산원치과 전체 휴진일입니다.'
+                : `오늘은 치과 정상진료(${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '18:30'}) 운영일입니다.`}
+              {todayHoliday.memo ? ` (${todayHoliday.memo})` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Banner & Live Clock */}
       <div className="bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-600 rounded-3xl p-5 text-white shadow-md relative overflow-hidden">
         {/* Subtle background decoration */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScheduleEvent, Staff } from '../types';
+import { ScheduleEvent, Staff, ClinicHoliday } from '../types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,12 +13,14 @@ import {
   Users,
   Clock,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { deleteSchedule } from '../api';
 
 interface SharedCalendarViewProps {
   schedules: ScheduleEvent[];
   staffList: Staff[];
+  holidays?: ClinicHoliday[];
   onOpenScheduleAdd: (presetDate?: string) => void;
   onRefresh: () => void;
   currentStaff: Staff | null;
@@ -29,6 +31,7 @@ type CalendarViewMode = 'week' | 'month';
 export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
   schedules,
   staffList,
+  holidays = [],
   onOpenScheduleAdd,
   onRefresh,
   currentStaff,
@@ -60,6 +63,7 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
     const dd = String(d.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const holiday = holidays.find((h) => h.date === dateStr);
     return {
       date: d,
       dateStr,
@@ -69,6 +73,10 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
       isToday: new Date().toISOString().split('T')[0] === dateStr,
       isSunday: d.getDay() === 0,
       isSaturday: d.getDay() === 6,
+      holiday,
+      isPublicHoliday: !!holiday?.isPublicHoliday,
+      isHalfDayClinic: holiday?.type === '반일진료',
+      isClosed: holiday?.type === '전체휴진',
     };
   });
 
@@ -353,9 +361,13 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
                     <th
                       key={d.dateStr}
                       onClick={() => setSelectedDateStr(d.dateStr)}
-                      className={`py-2 px-1.5 text-center cursor-pointer transition select-none ${
+                      className={`py-2 px-1 text-center cursor-pointer transition select-none ${
                         d.isToday
                           ? 'bg-sky-100/70 font-extrabold text-sky-900'
+                          : d.isClosed
+                          ? 'bg-rose-50/60 text-rose-600'
+                          : d.isHalfDayClinic
+                          ? 'bg-amber-50/50 text-amber-950'
                           : d.isSunday
                           ? 'text-rose-500'
                           : d.isSaturday
@@ -363,9 +375,11 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
                           : 'text-slate-700'
                       }`}
                     >
-                      <div className="text-[10px] leading-tight font-semibold">
-                        {d.dayName}
-                        {d.isToday && <span className="ml-0.5 text-sky-600 font-bold">(오늘)</span>}
+                      <div className="text-[10px] leading-tight font-semibold flex items-center justify-center gap-0.5">
+                        <span className={d.isSunday || d.isPublicHoliday || d.isClosed ? 'text-rose-600 font-bold' : ''}>
+                          {d.dayName}
+                        </span>
+                        {d.isToday && <span className="text-sky-600 font-bold text-[9px]">(오늘)</span>}
                       </div>
                       <div
                         className={`text-xs mt-0.5 inline-block w-6 h-6 rounded-full leading-6 text-center ${
@@ -373,11 +387,38 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
                             ? 'bg-sky-600 text-white font-bold'
                             : selectedDateStr === d.dateStr
                             ? 'bg-slate-800 text-white'
+                            : d.isSunday || d.isPublicHoliday || d.isClosed
+                            ? 'text-rose-600 font-bold'
                             : ''
                         }`}
                       >
                         {d.dayNum}
                       </div>
+
+                      {/* Holiday / Half-day / Closure Badges */}
+                      {d.holiday && (
+                        <div className="mt-1 space-y-0.5 leading-none">
+                          <div
+                            className="text-[9px] font-bold text-rose-700 truncate max-w-[56px] mx-auto"
+                            title={d.holiday.name}
+                          >
+                            {d.holiday.name}
+                          </div>
+                          <span
+                            className={`text-[8px] font-black px-1 py-0.2 rounded inline-block whitespace-nowrap shadow-2xs ${
+                              d.holiday.type === '반일진료'
+                                ? 'bg-amber-500 text-white'
+                                : d.holiday.type === '전체휴진'
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}
+                          >
+                            {d.holiday.type === '반일진료'
+                              ? `반일(${d.holiday.closeTime || '13:30'})`
+                              : d.holiday.type}
+                          </span>
+                        </div>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -543,16 +584,24 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
                   const isToday =
                     new Date().toISOString().split('T')[0] === dateStr;
                   const daySchedules = getAllSchedulesForDate(dateStr);
+                  const dayHoliday = holidays.find((h) => h.date === dateStr);
+                  const cellDayOfWeek = new Date(year, month, dayNum).getDay();
+                  const isSun = cellDayOfWeek === 0;
+                  const isSat = cellDayOfWeek === 6;
 
                   return (
                     <button
                       key={dateStr}
                       onClick={() => setSelectedDateStr(dateStr)}
-                      className={`min-h-[50px] p-1 rounded-xl text-left flex flex-col justify-between transition border ${
+                      className={`min-h-[58px] p-1 rounded-xl text-left flex flex-col justify-between transition border ${
                         isSelected
                           ? 'border-sky-500 bg-sky-50/80 shadow-xs ring-1 ring-sky-400'
                           : isToday
                           ? 'border-slate-300 bg-amber-50/40'
+                          : dayHoliday?.type === '전체휴진'
+                          ? 'border-rose-100 bg-rose-50/30'
+                          : dayHoliday?.type === '반일진료'
+                          ? 'border-amber-100 bg-amber-50/30'
                           : 'border-transparent hover:bg-slate-50'
                       }`}
                     >
@@ -563,17 +612,41 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
                               ? 'text-sky-600 font-extrabold'
                               : isSelected
                               ? 'text-sky-900'
+                              : isSun || dayHoliday?.isPublicHoliday || dayHoliday?.type === '전체휴진'
+                              ? 'text-rose-600'
+                              : isSat
+                              ? 'text-sky-600'
                               : 'text-slate-800'
                           }`}
                         >
                           {dayNum}
                         </span>
-                        {daySchedules.length > 0 && (
+                        {dayHoliday && (
+                          <span
+                            className={`text-[8px] font-black px-1 py-0.2 rounded leading-none ${
+                              dayHoliday.type === '반일진료'
+                                ? 'bg-amber-500 text-white'
+                                : dayHoliday.type === '전체휴진'
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}
+                          >
+                            {dayHoliday.type === '반일진료' ? '반일' : '휴진'}
+                          </span>
+                        )}
+                        {!dayHoliday && daySchedules.length > 0 && (
                           <span className="text-[9px] font-bold px-1 rounded-full bg-sky-100 text-sky-800">
                             {daySchedules.length}
                           </span>
                         )}
                       </div>
+
+                      {/* Holiday name label */}
+                      {dayHoliday && (
+                        <div className="text-[8px] font-bold text-rose-700 truncate leading-tight mt-0.5">
+                          {dayHoliday.name}
+                        </div>
+                      )}
 
                       <div className="w-full space-y-0.5 mt-1 overflow-hidden max-h-[30px]">
                         {daySchedules.slice(0, 2).map((ev) => {
@@ -621,6 +694,52 @@ export const SharedCalendarView: React.FC<SharedCalendarViewProps> = ({
             <Plus className="w-3.5 h-3.5" /> 이 날짜에 등록
           </button>
         </div>
+
+        {/* Selected Date Dental Operating Status Banner */}
+        {(() => {
+          const selectedDateHoliday = holidays.find((h) => h.date === selectedDateStr);
+          if (!selectedDateHoliday) return null;
+
+          return (
+            <div
+              className={`mb-3 p-3.5 rounded-2xl border flex items-start gap-3 shadow-2xs ${
+                selectedDateHoliday.type === '반일진료'
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                  : selectedDateHoliday.type === '전체휴진'
+                  ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+                  : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+              }`}
+            >
+              <div className="w-8 h-8 rounded-xl bg-white shadow-2xs flex items-center justify-center shrink-0 text-base">
+                {selectedDateHoliday.type === '반일진료' ? '☀️' : selectedDateHoliday.type === '전체휴진' ? '🌴' : '🏥'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-xs">{selectedDateHoliday.name}</span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      selectedDateHoliday.type === '반일진료'
+                        ? 'bg-amber-500 text-white'
+                        : selectedDateHoliday.type === '전체휴진'
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-emerald-600 text-white'
+                    }`}
+                  >
+                    당산원치과 {selectedDateHoliday.type}
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium leading-relaxed mt-1 text-slate-700">
+                  {selectedDateHoliday.type === '반일진료'
+                    ? `진료시간: ${selectedDateHoliday.openTime || '09:30'} ~ ${selectedDateHoliday.closeTime || '13:30'} (공휴일 오전 집중진료, 점심시간 없음)`
+                    : selectedDateHoliday.type === '전체휴진'
+                    ? '치과 전체 휴진일 (모든 외래 진료 휴무)'
+                    : `정상진료 (${selectedDateHoliday.openTime || '09:30'} ~ ${selectedDateHoliday.closeTime || '18:30'})`}
+                  {selectedDateHoliday.memo ? ` · ${selectedDateHoliday.memo}` : ''}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {selectedDateEvents.length === 0 ? (
           <div className="py-6 text-center text-slate-400 text-xs">
