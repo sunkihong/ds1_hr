@@ -1,0 +1,321 @@
+{
+  "settings": {
+    "name": "당산원치과",
+    "openTime": "09:30",
+    "closeTime": "18:30",
+    "lunchStart": "13:00",
+    "lunchEnd": "14:00",
+    "nightClinicDays": [
+      "화",
+      "목"
+    ],
+    "nightClinicCloseTime": "20:30",
+    "address": "서울특별시 영등포구 당산로 123 메디컬타워 4층",
+    "phone": "02-2633-2875",
+    "adminPin": "1234"
+  },
+  "staff": [
+    {
+      "id": "staff-01",
+      "name": "박진우",
+      "role": "대표원장",
+      "department": "진료부",
+      "phone": "010-3841-1001",
+      "color": "#0284c7",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 2,
+      "joinDate": "2020-03-01",
+      "avatarIcon": "tooth",
+      "birthDate": "1982-05-14",
+      "zodiac": "황소자리",
+      "motto": "환자 중심의 정직한 진료"
+    },
+    {
+      "id": "staff-02",
+      "name": "이서진",
+      "role": "원장",
+      "department": "진료부",
+      "phone": "010-4921-2002",
+      "color": "#0369a1",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 3,
+      "joinDate": "2022-01-10",
+      "avatarIcon": "stethoscope",
+      "birthDate": "1986-11-03",
+      "zodiac": "전갈자리",
+      "motto": "정밀하고 편안한 보존 치료"
+    },
+    {
+      "id": "staff-03",
+      "name": "정미래",
+      "role": "총괄실장",
+      "department": "경영지원",
+      "phone": "010-5219-3003",
+      "color": "#7c3aed",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 4,
+      "joinDate": "2021-05-15",
+      "avatarIcon": "briefcase",
+      "birthDate": "1990-08-20",
+      "zodiac": "사자자리",
+      "motto": "따뜻한 환대와 신뢰받는 상담"
+    },
+    {
+      "id": "staff-04",
+      "name": "한소희",
+      "role": "데스크주임",
+      "department": "경영지원",
+      "phone": "010-6712-4004",
+      "color": "#db2777",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 1.5,
+      "joinDate": "2023-04-01",
+      "avatarIcon": "user-check",
+      "birthDate": "1995-03-28",
+      "zodiac": "양자리",
+      "motto": "친절하고 정확한 안내"
+    },
+    {
+      "id": "staff-05",
+      "name": "강다은",
+      "role": "치과위생사",
+      "department": "치위생팀",
+      "phone": "010-7819-5005",
+      "color": "#059669",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 5,
+      "joinDate": "2021-09-01",
+      "avatarIcon": "shield-check",
+      "birthDate": "1993-07-15",
+      "zodiac": "게자리",
+      "motto": "철저한 감염관리와 예방 치과"
+    },
+    {
+      "id": "staff-06",
+      "name": "윤지민",
+      "role": "치과위생사",
+      "department": "치위생팀",
+      "phone": "010-8910-6006",
+      "color": "#10b981",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 3,
+      "joinDate": "2022-06-15",
+      "avatarIcon": "heart-pulse",
+      "birthDate": "1997-09-22",
+      "zodiac": "처녀자리",
+      "motto": "부드러운 손길과 섬세한 스케일링"
+    },
+    {
+      "id": "staff-07",
+      "name": "최유나",
+      "role": "치과위생사",
+      "department": "치위생팀",
+      "phone": "010-9011-7007",
+      "color": "#14b8a6",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 3,
+      "joinDate": "2023-02-20",
+      "avatarIcon": "smile",
+      "birthDate": "1999-04-12",
+      "zodiac": "양자리",
+      "motto": "환자가 안심하는 편안한 진료실"
+    },
+    {
+      "id": "staff-08",
+      "name": "오승현",
+      "role": "치과위생사",
+      "department": "치위생팀",
+      "phone": "010-2134-8008",
+      "color": "#06b6d4",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 1,
+      "joinDate": "2024-01-08",
+      "avatarIcon": "activity",
+      "birthDate": "2000-12-05",
+      "zodiac": "사수자리",
+      "motto": "밝은 에너지와 성실한 어시스트"
+    },
+    {
+      "id": "staff-09",
+      "name": "백현우",
+      "role": "치과기공사",
+      "department": "기공실",
+      "phone": "010-4321-9009",
+      "color": "#ea580c",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 4,
+      "joinDate": "2021-11-10",
+      "avatarIcon": "tool",
+      "birthDate": "1991-01-18",
+      "zodiac": "염소자리",
+      "motto": "자연치아와 같은 완벽한 보철"
+    },
+    {
+      "id": "staff-10",
+      "name": "김태린",
+      "role": "진료보조",
+      "department": "치위생팀",
+      "phone": "010-5432-0010",
+      "color": "#64748b",
+      "totalLeaveDays": 15,
+      "usedLeaveDays": 2,
+      "joinDate": "2024-03-02",
+      "avatarIcon": "users",
+      "birthDate": "2001-06-25",
+      "zodiac": "게자리",
+      "motto": "빠르고 꼼꼼한 진료 서포트"
+    }
+  ],
+  "attendance": [
+    {
+      "id": "att-staff-01-2026-10-20",
+      "staffId": "staff-01",
+      "date": "2026-10-20",
+      "clockInTime": "09:12:30",
+      "clockOutTime": null,
+      "status": "근무중",
+      "note": "원내 WiFi 연결 확인",
+      "location": "진료실 1"
+    },
+    {
+      "id": "att-staff-03-2026-10-20",
+      "staffId": "staff-03",
+      "date": "2026-10-20",
+      "clockInTime": "09:05:15",
+      "clockOutTime": null,
+      "status": "근무중",
+      "note": "데스크 정상 오픈",
+      "location": "데스크/상담실"
+    },
+    {
+      "id": "att-staff-04-2026-10-20",
+      "staffId": "staff-04",
+      "date": "2026-10-20",
+      "clockInTime": "09:18:40",
+      "clockOutTime": null,
+      "status": "근무중",
+      "note": "접수대 오픈 완료",
+      "location": "데스크"
+    },
+    {
+      "id": "att-staff-05-2026-10-20",
+      "staffId": "staff-05",
+      "date": "2026-10-20",
+      "clockInTime": "09:10:02",
+      "clockOutTime": null,
+      "status": "근무중",
+      "note": "체어 1~5번 소독 점검",
+      "location": "중앙진료실"
+    },
+    {
+      "id": "att-staff-06-2026-10-20",
+      "staffId": "staff-06",
+      "date": "2026-10-20",
+      "clockInTime": null,
+      "clockOutTime": null,
+      "status": "휴가",
+      "note": "연차 휴가"
+    },
+    {
+      "id": "att-staff-09-2026-10-20",
+      "staffId": "staff-09",
+      "date": "2026-10-20",
+      "clockInTime": "08:58:10",
+      "clockOutTime": null,
+      "status": "근무중",
+      "note": "보철물 마운팅 작업 중",
+      "location": "기공실"
+    },
+    {
+      "id": "att-staff-08-2026-10-20",
+      "staffId": "staff-08",
+      "date": "2026-10-20",
+      "clockInTime": "13:12:39",
+      "clockOutTime": "13:12:44",
+      "status": "퇴근완료",
+      "note": "치과 3체어 준비",
+      "location": "치과의원 원내"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "sch-01",
+      "staffId": "staff-06",
+      "title": "연차 휴가 (가족 행사)",
+      "type": "연차",
+      "startDate": "2026-10-20",
+      "endDate": "2026-10-20",
+      "description": "사전 승인 완료, 대체근무 최유나 위생사",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "approvalStatus": "승인완료",
+      "approvedBy": "박진우 대표원장"
+    },
+    {
+      "id": "sch-02",
+      "staffId": "staff-05",
+      "title": "화요일 야간진료 당직",
+      "type": "야간진료",
+      "startDate": "2026-10-20",
+      "endDate": "2026-10-20",
+      "description": "20:30까지 야간진료 어시스트",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "approvalStatus": "승인완료",
+      "approvedBy": "정미래 총괄실장"
+    },
+    {
+      "id": "sch-03",
+      "staffId": "staff-01",
+      "title": "야간진료 (화)",
+      "type": "야간진료",
+      "startDate": "2026-10-20",
+      "endDate": "2026-10-20",
+      "description": "임플란트 및 일반 야간진료",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "approvalStatus": "승인완료",
+      "approvedBy": "박진우 대표원장"
+    },
+    {
+      "id": "sch-04",
+      "staffId": "staff-07",
+      "title": "오후 반차 (병원 정기 검진)",
+      "type": "오후반차",
+      "startDate": "2026-10-20",
+      "endDate": "2026-10-20",
+      "description": "14:00 이후 퇴근 예정, 업무 인수인계 완료",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "approvalStatus": "승인대기",
+      "approvedBy": "최상위 관리자"
+    },
+    {
+      "id": "sch-05",
+      "staffId": "staff-04",
+      "title": "정기 연차 휴가 신청",
+      "type": "연차",
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-23",
+      "description": "가족 모임 참석으로 인한 연차 신청, 데스크 업무 정미래 실장님 인계 완료",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "approvalStatus": "승인대기"
+    }
+  ],
+  "notices": [
+    {
+      "id": "not-01",
+      "staffId": "staff-03",
+      "staffName": "정미래 실장",
+      "type": "공지사항",
+      "content": "📌 [알림] 이번 주 목요일 오후 1시 30분 월간 감염관리 소독 교육이 회의실에서 진행됩니다.",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "pinned": true
+    },
+    {
+      "id": "not-02",
+      "staffId": "staff-05",
+      "staffName": "강다은 팀장",
+      "type": "인수인계",
+      "content": "오후 4시 30분 3번 체어 김*식 환자분 임플란트 2차 수술 시 특수 어버트먼트 준비 부탁드립니다.",
+      "createdAt": "2026-10-20T13:12:29.577Z",
+      "pinned": false
+    }
+  ]
+}

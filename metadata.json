@@ -1,0 +1,6 @@
+{
+  "name": "당산원치과 - 직원 근태 및 일정 공유",
+  "description": "당산원치과 10인 직원을 위한 모바일 출퇴근 근태관리 및 휴가·반차·야간근무 일정 실시간 공유 앱 (안드로이드/아이폰 지원)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
