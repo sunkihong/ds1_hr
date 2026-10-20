@@ -404,11 +404,11 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
                 className="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center border border-white/30"
                 style={{ backgroundColor: currentStaff?.color || '#0284c7' }}
               >
-                {currentStaff?.name.slice(0, 1)}
+                {currentStaff ? currentStaff.name.slice(0, 1) : '치'}
               </div>
               <div>
-                <span className="font-bold text-sm">{currentStaff?.name}</span>
-                <span className="text-xs text-sky-200 ml-1.5">{currentStaff?.role}</span>
+                <span className="font-bold text-sm">{currentStaff ? currentStaff.name : '직원 미선택'}</span>
+                <span className="text-xs text-sky-200 ml-1.5">{currentStaff?.role || '선택 필요'}</span>
               </div>
             </div>
 
