@@ -6,6 +6,8 @@ import {
   Staff,
   TodayStaffStatus,
   ClinicHoliday,
+  ClinicWifiRouter,
+  ManualAttendanceRequest,
 } from './types';
 import {
   fetchClinicSettings,
@@ -15,6 +17,8 @@ import {
   fetchTodayAttendance,
   fetchAttendanceHistory,
   fetchHolidays,
+  fetchWifiRouters,
+  fetchManualAttendanceRequests,
 } from './api';
 import { AttendanceRecord } from './types';
 import { Header } from './components/Header';
@@ -62,6 +66,8 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
   const [holidays, setHolidays] = useState<ClinicHoliday[]>([]);
+  const [wifiRouters, setWifiRouters] = useState<ClinicWifiRouter[]>([]);
+  const [manualRequests, setManualRequests] = useState<ManualAttendanceRequest[]>([]);
   const [showGreeting, setShowGreeting] = useState<boolean>(() => {
     const skipDate = localStorage.getItem('dangsan_greeting_skip_date');
     const todayStr = new Date().toISOString().split('T')[0];
@@ -74,16 +80,27 @@ export default function App() {
     setSyncError(null);
     try {
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const [settingsRes, staffData, attendanceData, scheduleData, noticeData, historyData, holidayData] =
-        await Promise.all([
-          fetchClinicSettings(),
-          fetchStaffList(),
-          fetchTodayAttendance(),
-          fetchSchedules(),
-          fetchNotices(),
-          fetchAttendanceHistory(currentMonth),
-          fetchHolidays(),
-        ]);
+      const [
+        settingsRes,
+        staffData,
+        attendanceData,
+        scheduleData,
+        noticeData,
+        historyData,
+        holidayData,
+        wifiData,
+        manualReqData,
+      ] = await Promise.all([
+        fetchClinicSettings(),
+        fetchStaffList(),
+        fetchTodayAttendance(),
+        fetchSchedules(),
+        fetchNotices(),
+        fetchAttendanceHistory(currentMonth),
+        fetchHolidays(),
+        fetchWifiRouters(),
+        fetchManualAttendanceRequests(),
+      ]);
 
       setClinicSettings(settingsRes.settings);
       setStaffList(staffData);
@@ -92,6 +109,8 @@ export default function App() {
       setNotices(noticeData);
       setAttendanceHistory(historyData);
       setHolidays(holidayData);
+      setWifiRouters(wifiData);
+      setManualRequests(manualReqData);
       setLastSyncedTime(new Date());
 
       // If no current staff selected yet, load from localStorage or default to staff-06 (윤지민 위생사)
@@ -225,6 +244,8 @@ export default function App() {
             currentStaff={currentStaff}
             todayRecords={todayRecords}
             holidays={holidays}
+            wifiRouters={wifiRouters}
+            manualRequests={manualRequests}
             onRefresh={() => loadAllData()}
             onOpenScheduleAdd={() => handleOpenScheduleAdd()}
             onOpenNotices={() => setCurrentTab('notices')}
@@ -260,6 +281,8 @@ export default function App() {
             todayRecords={todayRecords}
             clinicSettings={clinicSettings}
             holidays={holidays}
+            wifiRouters={wifiRouters}
+            manualRequests={manualRequests}
             onRefresh={() => loadAllData()}
             onSelectStaff={handleSelectStaff}
           />
@@ -272,7 +295,8 @@ export default function App() {
         onChangeTab={handleTabChange}
         unreadNoticesCount={notices.length}
         pendingApprovalCount={
-          schedules.filter((s) => !s.approvalStatus || s.approvalStatus === '승인대기').length
+          schedules.filter((s) => !s.approvalStatus || s.approvalStatus === '승인대기').length +
+          manualRequests.filter((m) => m.status === '승인대기').length
         }
       />
 

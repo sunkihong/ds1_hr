@@ -1,4 +1,14 @@
-import { ClinicNotice, ClinicSettings, ScheduleEvent, Staff, TodayStaffStatus, AttendanceRecord, ClinicHoliday } from './types';
+import {
+  ClinicNotice,
+  ClinicSettings,
+  ScheduleEvent,
+  Staff,
+  TodayStaffStatus,
+  AttendanceRecord,
+  ClinicHoliday,
+  ClinicWifiRouter,
+  ManualAttendanceRequest,
+} from './types';
 
 const BASE_URL = '';
 
@@ -63,11 +73,23 @@ export async function fetchTodayAttendance(dateStr?: string): Promise<{
   return res.json();
 }
 
-export async function clockIn(staffId: string, note?: string, location?: string): Promise<{ success: boolean; record: AttendanceRecord; message: string }> {
+export async function clockIn(
+  staffId: string,
+  note?: string,
+  location?: string,
+  wifiOptions?: { authMethod?: 'wifi' | 'unverified' | 'manual_approved'; wifiSsid?: string; wifiBssid?: string }
+): Promise<{ success: boolean; record: AttendanceRecord; message: string }> {
   const res = await fetch(`${BASE_URL}/api/attendance/clock-in`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ staffId, note, location }),
+    body: JSON.stringify({
+      staffId,
+      note,
+      location,
+      authMethod: wifiOptions?.authMethod || 'wifi',
+      wifiSsid: wifiOptions?.wifiSsid,
+      wifiBssid: wifiOptions?.wifiBssid,
+    }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -76,11 +98,21 @@ export async function clockIn(staffId: string, note?: string, location?: string)
   return res.json();
 }
 
-export async function clockOut(staffId: string, note?: string): Promise<{ success: boolean; record: AttendanceRecord; message: string }> {
+export async function clockOut(
+  staffId: string,
+  note?: string,
+  wifiOptions?: { authMethod?: 'wifi' | 'unverified' | 'manual_approved'; wifiSsid?: string; wifiBssid?: string }
+): Promise<{ success: boolean; record: AttendanceRecord; message: string }> {
   const res = await fetch(`${BASE_URL}/api/attendance/clock-out`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ staffId, note }),
+    body: JSON.stringify({
+      staffId,
+      note,
+      authMethod: wifiOptions?.authMethod || 'wifi',
+      wifiSsid: wifiOptions?.wifiSsid,
+      wifiBssid: wifiOptions?.wifiBssid,
+    }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -288,6 +320,138 @@ export async function resetHolidays(): Promise<{ success: boolean; holidays: Cli
     method: 'POST',
   });
   if (!res.ok) throw new Error('휴무일 초기화에 실패했습니다.');
+  return res.json();
+}
+
+// ----------------------------------------------------
+// Wi-Fi Routers Management API
+// ----------------------------------------------------
+export async function fetchWifiRouters(): Promise<ClinicWifiRouter[]> {
+  const res = await fetch(`${BASE_URL}/api/wifi-routers`);
+  if (!res.ok) throw new Error('공유기 목록을 불러오지 못했습니다.');
+  return res.json();
+}
+
+export async function createWifiRouter(data: {
+  ssid: string;
+  bssid?: string;
+  location: string;
+  ipRange?: string;
+  isActive?: boolean;
+  description?: string;
+}): Promise<ClinicWifiRouter> {
+  const res = await fetch(`${BASE_URL}/api/wifi-routers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '공유기 등록에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function updateWifiRouter(
+  id: string,
+  updates: Partial<ClinicWifiRouter>
+): Promise<{ success: boolean; router: ClinicWifiRouter }> {
+  const res = await fetch(`${BASE_URL}/api/wifi-routers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '공유기 수정에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function deleteWifiRouter(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/wifi-routers/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('공유기 삭제에 실패했습니다.');
+  return res.json();
+}
+
+export async function resetWifiRouters(): Promise<{ success: boolean; wifiRouters: ClinicWifiRouter[] }> {
+  const res = await fetch(`${BASE_URL}/api/wifi-routers/reset`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('공유기 초기화에 실패했습니다.');
+  return res.json();
+}
+
+// ----------------------------------------------------
+// Manual Attendance Request API (핸드폰 미소지 수기 출퇴근 신청 & 관리자 승인)
+// ----------------------------------------------------
+export async function fetchManualAttendanceRequests(params?: {
+  status?: string;
+  staffId?: string;
+  date?: string;
+  month?: string;
+}): Promise<ManualAttendanceRequest[]> {
+  let url = `${BASE_URL}/api/attendance/manual-requests`;
+  if (params) {
+    const query = new URLSearchParams();
+    if (params.status) query.set('status', params.status);
+    if (params.staffId) query.set('staffId', params.staffId);
+    if (params.date) query.set('date', params.date);
+    if (params.month) query.set('month', params.month);
+    const qs = query.toString();
+    if (qs) url += `?${qs}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('수기 출퇴근 신청 목록을 불러오지 못했습니다.');
+  return res.json();
+}
+
+export async function submitManualAttendanceRequest(data: {
+  staffId: string;
+  date: string;
+  requestType: '출근' | '퇴근' | '출퇴근동시';
+  requestedClockIn?: string;
+  requestedClockOut?: string;
+  reason: string;
+  details?: string;
+}): Promise<{ success: boolean; request: ManualAttendanceRequest }> {
+  const res = await fetch(`${BASE_URL}/api/attendance/manual-requests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '수기 출퇴근 신청 제출에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function reviewManualAttendanceRequest(
+  id: string,
+  status: '승인' | '반려',
+  reviewedBy?: string,
+  rejectReason?: string
+): Promise<{ success: boolean; request: ManualAttendanceRequest }> {
+  const res = await fetch(`${BASE_URL}/api/attendance/manual-requests/${id}/review`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, reviewedBy, rejectReason }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || '수기 출퇴근 승인 처리에 실패했습니다.');
+  }
+  return res.json();
+}
+
+export async function deleteManualAttendanceRequest(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/attendance/manual-requests/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('수기 출퇴근 신청 삭제에 실패했습니다.');
   return res.json();
 }
 

@@ -41,8 +41,41 @@ export interface AttendanceRecord {
   status: '출근전' | '근무중' | '지각' | '정상출근' | '퇴근완료' | '휴가' | '반차';
   note?: string;
   location?: string;
-  correctionStatus?: '정상' | '지각소명요청' | '소명승인' | '퇴근누락수정' | '관리자수기등록';
+  correctionStatus?: '정상' | '지각소명요청' | '소명승인' | '퇴근누락수정' | '관리자수기등록' | '수기신청승인';
   correctionReason?: string;
+  authMethod?: 'wifi' | 'manual_approved' | 'admin_direct' | 'unverified';
+  wifiSsid?: string;
+  wifiBssid?: string;
+  manualRequestId?: string;
+}
+
+export interface ClinicWifiRouter {
+  id: string;
+  ssid: string; // e.g. "DangsanWon_Staff_5G"
+  bssid?: string; // e.g. "00:1A:2B:3C:4D:5E"
+  location: string; // e.g. "2층 데스크/대기실", "3층 제1~3진료실", "치과 기공실"
+  ipRange?: string; // e.g. "192.168.10.0/24"
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ManualAttendanceRequest {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  date: string; // YYYY-MM-DD
+  requestType: '출근' | '퇴근' | '출퇴근동시';
+  requestedClockIn?: string; // HH:mm:ss or HH:mm
+  requestedClockOut?: string; // HH:mm:ss or HH:mm
+  reason: string;
+  details?: string;
+  status: '승인대기' | '승인' | '반려';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+  createdAt: string;
 }
 
 export interface ScheduleEvent {
@@ -103,6 +136,8 @@ export interface DatabaseSchema {
   schedules: ScheduleEvent[];
   notices: ClinicNotice[];
   holidays: ClinicHoliday[];
+  wifiRouters: ClinicWifiRouter[];
+  manualAttendanceRequests: ManualAttendanceRequest[];
 }
 
 // 10 Dental clinic staff initial preset
@@ -401,6 +436,65 @@ function getInitialData(): DatabaseSchema {
     { id: 'hol-22', date: '2026-12-25', name: '성탄절', type: '전체휴진', isPublicHoliday: true },
   ];
 
+  const defaultWifiRouters: ClinicWifiRouter[] = [
+    {
+      id: 'wifi-01',
+      ssid: 'DangsanWon_Staff_5G',
+      bssid: '00:11:22:33:44:A1',
+      location: '2층 접수데스크 & 고객상담실',
+      ipRange: '192.168.10.0/24',
+      isActive: true,
+      description: '치과 원내 메인 고속 5GHz 직원용 AP',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'wifi-02',
+      ssid: 'DangsanWon_Clinic_AP1',
+      bssid: '00:11:22:33:44:B2',
+      location: '3층 제1~3진료실 (체어존)',
+      ipRange: '192.168.10.0/24',
+      isActive: true,
+      description: '진료실 내부 납차폐 구역 보강 AP',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'wifi-03',
+      ssid: 'DangsanWon_Lab_Secure',
+      bssid: '00:11:22:33:44:C3',
+      location: '4층 기공실 및 중앙소독실',
+      ipRange: '192.168.10.0/24',
+      isActive: true,
+      description: '기공실 CAD/CAM 장비 및 기공직원 AP',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'wifi-04',
+      ssid: 'DangsanWon_Rest_2.4G',
+      bssid: '00:11:22:33:44:D4',
+      location: '직원휴게실 & 원장실',
+      ipRange: '192.168.10.0/24',
+      isActive: true,
+      description: '휴게 공간 및 원장실 무선망',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ];
+
+  const defaultManualRequests: ManualAttendanceRequest[] = [
+    {
+      id: 'man-req-01',
+      staffId: 'staff-05',
+      staffName: '강다은',
+      staffRole: '치과위생사',
+      date: new Date().toISOString().split('T')[0],
+      requestType: '출근',
+      requestedClockIn: '09:12:00',
+      reason: '스마트폰 배터리 방전 / 미소지',
+      details: '출근길 휴대폰 전원이 꺼져 와이파이 자동 인식이 불가능하여 수기 출근 신청합니다.',
+      status: '승인대기',
+      createdAt: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ];
+
   return {
     settings: initialSettings,
     staff: initialStaff,
@@ -408,6 +502,8 @@ function getInitialData(): DatabaseSchema {
     schedules: sampleSchedules,
     notices: sampleNotices,
     holidays: defaultHolidays,
+    wifiRouters: defaultWifiRouters,
+    manualAttendanceRequests: defaultManualRequests,
   };
 }
 
@@ -424,9 +520,24 @@ function readDB(): DatabaseSchema {
     }
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
+    let dirty = false;
+
     if (!parsed.holidays || parsed.holidays.length === 0) {
       const init = getInitialData();
       parsed.holidays = init.holidays;
+      dirty = true;
+    }
+    if (!parsed.wifiRouters || parsed.wifiRouters.length === 0) {
+      const init = getInitialData();
+      parsed.wifiRouters = init.wifiRouters;
+      dirty = true;
+    }
+    if (!parsed.manualAttendanceRequests) {
+      const init = getInitialData();
+      parsed.manualAttendanceRequests = init.manualAttendanceRequests;
+      dirty = true;
+    }
+    if (dirty) {
       writeDB(parsed);
     }
     return parsed;
@@ -596,6 +707,73 @@ app.post('/api/holidays/reset', (_req: Request, res: Response) => {
   res.json({ success: true, holidays: db.holidays });
 });
 
+// 2-2. Clinic Wi-Fi Routers Management (병원 출퇴근 인증용 공유기 관리)
+app.get('/api/wifi-routers', (_req: Request, res: Response) => {
+  const db = readDB();
+  res.json(db.wifiRouters || []);
+});
+
+app.post('/api/wifi-routers', (req: Request, res: Response) => {
+  const { ssid, bssid, location, ipRange, isActive, description } = req.body;
+  if (!ssid || !location) {
+    return res.status(400).json({ error: '공유기 SSID(이름)과 설치 위치는 필수 항목입니다.' });
+  }
+
+  const db = readDB();
+  if (!db.wifiRouters) db.wifiRouters = [];
+
+  const newRouter: ClinicWifiRouter = {
+    id: `wifi-${Date.now()}`,
+    ssid: ssid.trim(),
+    bssid: bssid ? bssid.trim() : undefined,
+    location: location.trim(),
+    ipRange: ipRange ? ipRange.trim() : '192.168.10.0/24',
+    isActive: isActive !== undefined ? !!isActive : true,
+    description: description ? description.trim() : '',
+    createdAt: new Date().toISOString(),
+  };
+
+  db.wifiRouters.push(newRouter);
+  writeDB(db);
+  res.status(201).json(newRouter);
+});
+
+app.put('/api/wifi-routers/:id', (req: Request, res: Response) => {
+  const db = readDB();
+  if (!db.wifiRouters) db.wifiRouters = [];
+  const index = db.wifiRouters.findIndex((w) => w.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '공유기 정보를 찾을 수 없습니다.' });
+  }
+
+  const current = db.wifiRouters[index];
+  const updated: ClinicWifiRouter = {
+    ...current,
+    ...req.body,
+    id: current.id,
+  };
+
+  db.wifiRouters[index] = updated;
+  writeDB(db);
+  res.json({ success: true, router: updated });
+});
+
+app.delete('/api/wifi-routers/:id', (req: Request, res: Response) => {
+  const db = readDB();
+  if (!db.wifiRouters) db.wifiRouters = [];
+  db.wifiRouters = db.wifiRouters.filter((w) => w.id !== req.params.id);
+  writeDB(db);
+  res.json({ success: true });
+});
+
+app.post('/api/wifi-routers/reset', (_req: Request, res: Response) => {
+  const db = readDB();
+  const initial = getInitialData();
+  db.wifiRouters = initial.wifiRouters;
+  writeDB(db);
+  res.json({ success: true, wifiRouters: db.wifiRouters });
+});
+
 // 3. Attendance Management
 app.get('/api/attendance/today', (req: Request, res: Response) => {
   const db = readDB();
@@ -639,9 +817,9 @@ app.get('/api/attendance/history', (req: Request, res: Response) => {
   res.json(records);
 });
 
-// Clock-in endpoint
+// Clock-in endpoint (supports hospital Wi-Fi authentication)
 app.post('/api/attendance/clock-in', (req: Request, res: Response) => {
-  const { staffId, note, location } = req.body;
+  const { staffId, note, location, authMethod, wifiSsid, wifiBssid } = req.body;
   if (!staffId) {
     return res.status(400).json({ error: '직원 ID가 필요합니다.' });
   }
@@ -663,6 +841,9 @@ app.post('/api/attendance/clock-in', (req: Request, res: Response) => {
     record.status = status;
     if (note) record.note = note;
     if (location) record.location = location;
+    if (authMethod) record.authMethod = authMethod;
+    if (wifiSsid) record.wifiSsid = wifiSsid;
+    if (wifiBssid) record.wifiBssid = wifiBssid;
   } else {
     record = {
       id: `att-${staffId}-${today}`,
@@ -672,18 +853,25 @@ app.post('/api/attendance/clock-in', (req: Request, res: Response) => {
       clockOutTime: null,
       status,
       note: note || '',
-      location: location || '치과의원 원내',
+      location: location || (wifiSsid ? `병원 Wi-Fi (${wifiSsid})` : '치과의원 원내'),
+      authMethod: authMethod || 'wifi',
+      wifiSsid: wifiSsid || undefined,
+      wifiBssid: wifiBssid || undefined,
     };
     db.attendance.push(record);
   }
 
   writeDB(db);
-  res.json({ success: true, record, message: `${currentTime} 출근이 정상 기록되었습니다.` });
+  res.json({
+    success: true,
+    record,
+    message: `${currentTime} ${wifiSsid ? `[${wifiSsid} 인증]` : ''} 출근이 정상 기록되었습니다.`,
+  });
 });
 
-// Clock-out endpoint
+// Clock-out endpoint (supports hospital Wi-Fi authentication)
 app.post('/api/attendance/clock-out', (req: Request, res: Response) => {
-  const { staffId, note } = req.body;
+  const { staffId, note, authMethod, wifiSsid, wifiBssid } = req.body;
   if (!staffId) {
     return res.status(400).json({ error: '직원 ID가 필요합니다.' });
   }
@@ -704,18 +892,167 @@ app.post('/api/attendance/clock-out', (req: Request, res: Response) => {
       clockOutTime: currentTime,
       status: '퇴근완료',
       note: note || '퇴근 처리',
+      location: wifiSsid ? `병원 Wi-Fi (${wifiSsid})` : '치과의원 원내',
+      authMethod: authMethod || 'wifi',
+      wifiSsid: wifiSsid || undefined,
+      wifiBssid: wifiBssid || undefined,
     };
     db.attendance.push(record);
   } else {
     record.clockOutTime = currentTime;
     record.status = '퇴근완료';
+    if (authMethod) record.authMethod = authMethod;
+    if (wifiSsid) record.wifiSsid = wifiSsid;
+    if (wifiBssid) record.wifiBssid = wifiBssid;
     if (note) {
       record.note = record.note ? `${record.note} | ${note}` : note;
     }
   }
 
   writeDB(db);
-  res.json({ success: true, record, message: `${currentTime} 퇴근이 정상 기록되었습니다.` });
+  res.json({
+    success: true,
+    record,
+    message: `${currentTime} ${wifiSsid ? `[${wifiSsid} 인증]` : ''} 퇴근이 정상 기록되었습니다.`,
+  });
+});
+
+// 3-1. Manual Attendance Requests (핸드폰 미소지 / 수기 출퇴근 신청 & 관리자 승인)
+app.get('/api/attendance/manual-requests', (req: Request, res: Response) => {
+  const db = readDB();
+  const { status, staffId, date, month } = req.query;
+  let requests = [...(db.manualAttendanceRequests || [])];
+
+  if (status && typeof status === 'string' && status !== '전체') {
+    requests = requests.filter((r) => r.status === status);
+  }
+  if (staffId && typeof staffId === 'string') {
+    requests = requests.filter((r) => r.staffId === staffId);
+  }
+  if (date && typeof date === 'string') {
+    requests = requests.filter((r) => r.date === date);
+  }
+  if (month && typeof month === 'string') {
+    requests = requests.filter((r) => r.date.startsWith(month));
+  }
+
+  // Sort newest first
+  requests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  res.json(requests);
+});
+
+app.post('/api/attendance/manual-requests', (req: Request, res: Response) => {
+  const { staffId, date, requestType, requestedClockIn, requestedClockOut, reason, details } = req.body;
+  if (!staffId || !date || !requestType || !reason) {
+    return res.status(400).json({ error: '직원, 날짜, 신청 유형, 사유는 필수 입력 항목입니다.' });
+  }
+
+  const db = readDB();
+  const staff = db.staff.find((s) => s.id === staffId);
+  if (!staff) {
+    return res.status(404).json({ error: '직원을 찾을 수 없습니다.' });
+  }
+
+  if (!db.manualAttendanceRequests) db.manualAttendanceRequests = [];
+
+  const newRequest: ManualAttendanceRequest = {
+    id: `man-req-${Date.now()}`,
+    staffId,
+    staffName: staff.name,
+    staffRole: staff.role,
+    date,
+    requestType,
+    requestedClockIn: requestedClockIn || undefined,
+    requestedClockOut: requestedClockOut || undefined,
+    reason,
+    details: details || '',
+    status: '승인대기',
+    createdAt: new Date().toISOString(),
+  };
+
+  db.manualAttendanceRequests.unshift(newRequest);
+  writeDB(db);
+  res.status(201).json({ success: true, request: newRequest });
+});
+
+// Admin Review (Approve or Reject manual attendance request)
+app.put('/api/attendance/manual-requests/:id/review', (req: Request, res: Response) => {
+  const { status, reviewedBy, rejectReason } = req.body;
+  if (!status || (status !== '승인' && status !== '반려')) {
+    return res.status(400).json({ error: '유효한 승인 상태(승인 또는 반려)를 지정하세요.' });
+  }
+
+  const db = readDB();
+  if (!db.manualAttendanceRequests) db.manualAttendanceRequests = [];
+  const reqIndex = db.manualAttendanceRequests.findIndex((r) => r.id === req.params.id);
+  if (reqIndex === -1) {
+    return res.status(404).json({ error: '수기 출퇴근 신청 건을 찾을 수 없습니다.' });
+  }
+
+  const targetReq = db.manualAttendanceRequests[reqIndex];
+  targetReq.status = status;
+  targetReq.reviewedBy = reviewedBy || '관리자';
+  targetReq.reviewedAt = new Date().toISOString();
+  if (rejectReason) targetReq.rejectReason = rejectReason;
+
+  // If approved, automatically update or create the attendance record!
+  if (status === '승인') {
+    let attRecord = db.attendance.find((a) => a.staffId === targetReq.staffId && a.date === targetReq.date);
+    const [openH, openM] = db.settings.openTime.split(':').map(Number);
+
+    if (attRecord) {
+      if (targetReq.requestedClockIn) {
+        attRecord.clockInTime = targetReq.requestedClockIn;
+        const [inH, inM] = targetReq.requestedClockIn.split(':').map(Number);
+        const isLate = inH > openH || (inH === openH && inM > openM);
+        attRecord.status = isLate ? '지각' : '정상출근';
+      }
+      if (targetReq.requestedClockOut) {
+        attRecord.clockOutTime = targetReq.requestedClockOut;
+        attRecord.status = '퇴근완료';
+      }
+      attRecord.correctionStatus = '수기신청승인';
+      attRecord.correctionReason = `[수기승인] ${targetReq.reason}${targetReq.details ? ` (${targetReq.details})` : ''}`;
+      attRecord.authMethod = 'manual_approved';
+      attRecord.manualRequestId = targetReq.id;
+    } else {
+      let finalStatus: AttendanceRecord['status'] = '정상출근';
+      if (targetReq.requestedClockOut && !targetReq.requestedClockIn) {
+        finalStatus = '퇴근완료';
+      } else if (targetReq.requestedClockIn) {
+        const [inH, inM] = targetReq.requestedClockIn.split(':').map(Number);
+        const isLate = inH > openH || (inH === openH && inM > openM);
+        finalStatus = isLate ? '지각' : '정상출근';
+      }
+
+      attRecord = {
+        id: `att-${targetReq.staffId}-${targetReq.date}`,
+        staffId: targetReq.staffId,
+        date: targetReq.date,
+        clockInTime: targetReq.requestedClockIn || null,
+        clockOutTime: targetReq.requestedClockOut || null,
+        status: finalStatus,
+        note: `수기 신청 승인 (${targetReq.reason})`,
+        location: '병원 원내 (수기 승인)',
+        correctionStatus: '수기신청승인',
+        correctionReason: `[수기승인] ${targetReq.reason}`,
+        authMethod: 'manual_approved',
+        manualRequestId: targetReq.id,
+      };
+      db.attendance.push(attRecord);
+    }
+  }
+
+  writeDB(db);
+  res.json({ success: true, request: targetReq });
+});
+
+app.delete('/api/attendance/manual-requests/:id', (req: Request, res: Response) => {
+  const db = readDB();
+  if (!db.manualAttendanceRequests) db.manualAttendanceRequests = [];
+  db.manualAttendanceRequests = db.manualAttendanceRequests.filter((r) => r.id !== req.params.id);
+  writeDB(db);
+  res.json({ success: true });
 });
 
 // 4. Schedules & Leave Management

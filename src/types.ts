@@ -23,8 +23,41 @@ export interface AttendanceRecord {
   status: '출근전' | '근무중' | '지각' | '정상출근' | '퇴근완료' | '휴가' | '반차';
   note?: string;
   location?: string;
-  correctionStatus?: '정상' | '지각소명요청' | '소명승인' | '퇴근누락수정' | '관리자수기등록';
+  correctionStatus?: '정상' | '지각소명요청' | '소명승인' | '퇴근누락수정' | '관리자수기등록' | '수기신청승인';
   correctionReason?: string;
+  authMethod?: 'wifi' | 'manual_approved' | 'admin_direct' | 'unverified';
+  wifiSsid?: string;
+  wifiBssid?: string;
+  manualRequestId?: string;
+}
+
+export interface ClinicWifiRouter {
+  id: string;
+  ssid: string; // e.g. "DangsanWon_Staff_5G"
+  bssid?: string; // e.g. "00:1A:2B:3C:4D:5E"
+  location: string; // e.g. "2층 데스크/대기실", "3층 제1~3진료실", "치과 기공실"
+  ipRange?: string; // e.g. "192.168.10.0/24"
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ManualAttendanceRequest {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  date: string; // YYYY-MM-DD
+  requestType: '출근' | '퇴근' | '출퇴근동시';
+  requestedClockIn?: string; // HH:mm:ss or HH:mm
+  requestedClockOut?: string; // HH:mm:ss or HH:mm
+  reason: string; // e.g. "스마트폰 미지참/집에 두고 옴", "배터리 방전", "원내 Wi-Fi 연결 단말 오류"
+  details?: string;
+  status: '승인대기' | '승인' | '반려';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+  createdAt: string;
 }
 
 export interface ScheduleEvent {

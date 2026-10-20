@@ -6,6 +6,8 @@ import {
   ClinicSettings,
   TodayStaffStatus,
   ClinicHoliday,
+  ClinicWifiRouter,
+  ManualAttendanceRequest,
 } from '../types';
 import {
   adminUpdateScheduleStatus,
@@ -20,6 +22,12 @@ import {
   updateHoliday,
   deleteHoliday,
   resetHolidays,
+  createWifiRouter,
+  updateWifiRouter,
+  deleteWifiRouter,
+  resetWifiRouters,
+  reviewManualAttendanceRequest,
+  deleteManualAttendanceRequest,
 } from '../api';
 import {
   ShieldAlert,
@@ -46,6 +54,10 @@ import {
   Check,
   RotateCcw,
   Sparkles,
+  Wifi,
+  WifiOff,
+  Smartphone,
+  Radio,
 } from 'lucide-react';
 
 interface AdminPageViewProps {
@@ -56,11 +68,13 @@ interface AdminPageViewProps {
   todayRecords: TodayStaffStatus[];
   clinicSettings: ClinicSettings;
   holidays?: ClinicHoliday[];
+  wifiRouters?: ClinicWifiRouter[];
+  manualRequests?: ManualAttendanceRequest[];
   onRefresh: () => void;
   onSelectStaff: (staff: Staff) => void;
 }
 
-type AdminSubTab = 'approvals' | 'abnormal' | 'staff' | 'holidays' | 'settings';
+type AdminSubTab = 'approvals' | 'wifi' | 'abnormal' | 'staff' | 'holidays' | 'settings';
 
 export const AdminPageView: React.FC<AdminPageViewProps> = ({
   currentStaff,
@@ -70,6 +84,8 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
   todayRecords,
   clinicSettings,
   holidays = [],
+  wifiRouters = [],
+  manualRequests = [],
   onRefresh,
   onSelectStaff,
 }) => {
@@ -87,10 +103,14 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
   // Sub tab state
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('approvals');
 
-  // Approvals filter state
+  // Approvals category & filter state
+  const [approvalCategory, setApprovalCategory] = useState<'schedule' | 'manual'>('manual');
   const [approvalFilter, setApprovalFilter] = useState<'대기' | '전체' | '완료' | '반려'>('대기');
+  const [manualFilter, setManualFilter] = useState<'대기' | '전체' | '완료' | '반려'>('대기');
   const [rejectingScheduleId, setRejectingScheduleId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectingManualId, setRejectingManualId] = useState<string | null>(null);
+  const [manualRejectReason, setManualRejectReason] = useState('');
 
   // Abnormal Attendance modal / form state
   const [showManualModal, setShowManualModal] = useState(false);
@@ -142,6 +162,20 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
   });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
+  // Wi-Fi router management state
+  const [showWifiModal, setShowWifiModal] = useState(false);
+  const [editingWifi, setEditingWifi] = useState<ClinicWifiRouter | null>(null);
+  const [wifiForm, setWifiForm] = useState({
+    ssid: '',
+    bssid: '',
+    location: '',
+    ipRange: '192.168.10.0/24',
+    isActive: true,
+    description: '',
+  });
+  const [isSavingWifi, setIsSavingWifi] = useState(false);
+  const [wifiSearchQuery, setWifiSearchQuery] = useState('');
+
   // --- Handlers: Authentication ---
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,6 +221,123 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
       onRefresh();
     } catch (err: unknown) {
       alert((err as Error).message || '반려 처리에 실패했습니다.');
+    }
+  };
+
+  // --- Handlers: Manual Attendance Approvals (핸드폰 미소지 수기 신청 승인/반려) ---
+  const handleApproveManual = async (id: string) => {
+    try {
+      const approverName = currentStaff ? `${currentStaff.name} ${currentStaff.role}` : '최상위 관리자';
+      await reviewManualAttendanceRequest(id, '승인', approverName);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '수기 출퇴근 승인 처리에 실패했습니다.');
+    }
+  };
+
+  const handleRejectManual = async (id: string) => {
+    if (!manualRejectReason.trim()) {
+      alert('반려 사유를 입력해주세요.');
+      return;
+    }
+    try {
+      const approverName = currentStaff ? `${currentStaff.name} ${currentStaff.role}` : '최상위 관리자';
+      await reviewManualAttendanceRequest(id, '반려', approverName, manualRejectReason.trim());
+      setRejectingManualId(null);
+      setManualRejectReason('');
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '수기 신청 반려 처리에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteManual = async (id: string) => {
+    if (!confirm('해당 수기 출퇴근 신청 내역을 삭제하시겠습니까?')) return;
+    try {
+      await deleteManualAttendanceRequest(id);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '삭제에 실패했습니다.');
+    }
+  };
+
+  // --- Handlers: Wi-Fi Routers Management (병원 출퇴근 인정 공유기) ---
+  const handleOpenAddWifi = () => {
+    setEditingWifi(null);
+    setWifiForm({
+      ssid: '',
+      bssid: '',
+      location: '',
+      ipRange: '192.168.10.0/24',
+      isActive: true,
+      description: '',
+    });
+    setShowWifiModal(true);
+  };
+
+  const handleOpenEditWifi = (router: ClinicWifiRouter) => {
+    setEditingWifi(router);
+    setWifiForm({
+      ssid: router.ssid,
+      bssid: router.bssid || '',
+      location: router.location,
+      ipRange: router.ipRange || '192.168.10.0/24',
+      isActive: router.isActive,
+      description: router.description || '',
+    });
+    setShowWifiModal(true);
+  };
+
+  const handleSaveWifi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wifiForm.ssid.trim() || !wifiForm.location.trim()) {
+      alert('공유기 SSID(이름)과 설치 위치는 필수 입력 항목입니다.');
+      return;
+    }
+
+    setIsSavingWifi(true);
+    try {
+      if (editingWifi) {
+        await updateWifiRouter(editingWifi.id, wifiForm);
+      } else {
+        await createWifiRouter(wifiForm);
+      }
+      setShowWifiModal(false);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '공유기 정보 저장에 실패했습니다.');
+    } finally {
+      setIsSavingWifi(false);
+    }
+  };
+
+  const handleToggleWifiActive = async (router: ClinicWifiRouter) => {
+    try {
+      await updateWifiRouter(router.id, { isActive: !router.isActive });
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '공유기 상태 변경에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteWifi = async (id: string, ssid: string) => {
+    if (!confirm(`'${ssid}' 공유기를 목록에서 삭제하시겠습니까?\n삭제 시 해당 공유기를 통한 출퇴근 인증이 제한됩니다.`)) return;
+    try {
+      await deleteWifiRouter(id);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '공유기 삭제에 실패했습니다.');
+    }
+  };
+
+  const handleResetWifi = async () => {
+    if (!confirm('병원 기본 Wi-Fi 공유기 목록(2층 데스크, 3층 진료실, 4층 기공실, 휴게실)으로 복원하시겠습니까?')) return;
+    try {
+      await resetWifiRouters();
+      alert('병원 공유기 목록이 기본값으로 초기화되었습니다.');
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message || '초기화에 실패했습니다.');
     }
   };
 
@@ -450,6 +601,32 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
     return schedules;
   }, [schedules, approvalFilter, pendingSchedules]);
 
+  // Manual attendance requests calculations
+  const pendingManualRequests = useMemo(() => {
+    return manualRequests.filter((r) => r.status === '승인대기');
+  }, [manualRequests]);
+
+  const displayedManualRequests = useMemo(() => {
+    if (manualFilter === '대기') return pendingManualRequests;
+    if (manualFilter === '완료') return manualRequests.filter((r) => r.status === '승인');
+    if (manualFilter === '반려') return manualRequests.filter((r) => r.status === '반려');
+    return manualRequests;
+  }, [manualRequests, manualFilter, pendingManualRequests]);
+
+  // Wi-Fi routers filtered calculations
+  const displayedWifiRouters = useMemo(() => {
+    return wifiRouters.filter((r) => {
+      if (!wifiSearchQuery.trim()) return true;
+      const q = wifiSearchQuery.toLowerCase();
+      return (
+        r.ssid.toLowerCase().includes(q) ||
+        r.location.toLowerCase().includes(q) ||
+        (r.bssid && r.bssid.toLowerCase().includes(q)) ||
+        (r.description && r.description.toLowerCase().includes(q))
+      );
+    });
+  }, [wifiRouters, wifiSearchQuery]);
+
   // Abnormal attendances (late, missing clock out)
   const abnormalAttendances = useMemo(() => {
     return attendanceRecords.filter((rec) => {
@@ -559,13 +736,25 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
         </div>
 
         {/* Admin Navigation Pills */}
-        <div className="grid grid-cols-5 gap-1 mt-3 pt-2 border-t border-white/15">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mt-3 pt-2 border-t border-white/15">
           {[
             {
               id: 'approvals' as AdminSubTab,
-              label: '휴가 승인',
-              badge: pendingSchedules.length > 0 ? pendingSchedules.length : undefined,
+              label: '승인 관리',
+              badge:
+                pendingSchedules.length + pendingManualRequests.length > 0
+                  ? pendingSchedules.length + pendingManualRequests.length
+                  : undefined,
               badgeColor: 'bg-rose-500',
+            },
+            {
+              id: 'wifi' as AdminSubTab,
+              label: '공유기 관리',
+              badge:
+                wifiRouters.length > 0
+                  ? `${wifiRouters.filter((r) => r.isActive).length}개`
+                  : undefined,
+              badgeColor: 'bg-emerald-600',
             },
             {
               id: 'abnormal' as AdminSubTab,
@@ -582,9 +771,10 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
             {
               id: 'holidays' as AdminSubTab,
               label: '휴무일 지정',
-              badge: holidays.filter((h) => h.type === '반일진료').length > 0
-                ? `${holidays.filter((h) => h.type === '반일진료').length}반일`
-                : undefined,
+              badge:
+                holidays.filter((h) => h.type === '반일진료').length > 0
+                  ? `${holidays.filter((h) => h.type === '반일진료').length}반일`
+                  : undefined,
               badgeColor: 'bg-amber-500',
             },
             {
@@ -615,176 +805,598 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
       </div>
 
       {/* ========================================================
-          SUB-TAB 1: 휴가 / 일정 승인 관리
+          SUB-TAB 1: 승인 관리 (수기 출퇴근 신청 & 휴가/일정 승인)
          ======================================================== */}
       {activeSubTab === 'approvals' && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-sky-600" />
-              <h3 className="text-sm font-bold text-slate-900">
-                휴가 및 일정 승인 결재함
-              </h3>
-            </div>
-
-            {/* Filter pills */}
-            <div className="flex items-center p-0.5 bg-slate-100 rounded-lg">
-              {(['대기', '전체', '완료', '반려'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setApprovalFilter(f)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                    approvalFilter === f
-                      ? 'bg-white text-sky-700 shadow-2xs font-bold'
-                      : 'text-slate-500'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
+        <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3.5">
+          {/* Category Switcher: 수기 출퇴근 결재함 vs 휴가/연차 결재함 */}
+          <div className="flex border-b border-slate-200 bg-slate-50 p-1 rounded-2xl gap-1">
+            <button
+              type="button"
+              onClick={() => setApprovalCategory('manual')}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                approvalCategory === 'manual'
+                  ? 'bg-white text-sky-800 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5 text-amber-500" />
+              <span>📱 수기 출퇴근 승인 (핸드폰 미소지)</span>
+              {pendingManualRequests.length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {pendingManualRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setApprovalCategory('schedule')}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                approvalCategory === 'schedule'
+                  ? 'bg-white text-sky-800 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FileCheck className="w-3.5 h-3.5 text-sky-600" />
+              <span>🏖️ 휴가 및 연차 결재함</span>
+              {pendingSchedules.length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {pendingSchedules.length}
+                </span>
+              )}
+            </button>
           </div>
 
-          {displayedSchedules.length === 0 ? (
-            <div className="py-8 text-center text-slate-400">
-              {approvalFilter === '대기'
-                ? '현재 대기 중인 휴가/일정 승인 건이 없습니다.'
-                : '해당 조건의 내역이 없습니다.'}
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {displayedSchedules.map((item) => {
-                const staff = staffList.find((s) => s.id === item.staffId);
-                const status = item.approvalStatus || '승인대기';
-                const isPending = status === '승인대기';
+          {/* SECTION 1-A: 수기 출퇴근 신청 승인 결재함 */}
+          {approvalCategory === 'manual' && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>핸드폰 미소지 · 수기 출퇴근 신청 결재함</span>
+                    <span className="text-xs text-slate-500 font-normal">
+                      (대기 {pendingManualRequests.length}건 / 전체 {manualRequests.length}건)
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    단말기 미소지, 배터리 방전 등으로 개인이 직접 신청한 출퇴근 시간을 검토 및 승인합니다.
+                  </p>
+                </div>
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-3.5 rounded-2xl border transition ${
-                      isPending
-                        ? 'bg-rose-50/50 border-rose-200/80'
-                        : status === '승인완료'
-                        ? 'bg-slate-50/70 border-slate-200'
-                        : 'bg-slate-100/60 border-slate-200 opacity-70'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs mt-0.5"
-                          style={{ backgroundColor: staff?.color || '#0284c7' }}
-                        >
-                          {staff?.name.slice(0, 1)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-900 text-xs">
-                              {staff?.name}
-                            </span>
-                            <span className="text-[11px] text-slate-500">
-                              {staff?.role} · {staff?.department}
-                            </span>
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
-                                status === '승인대기'
-                                  ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
-                                  : status === '승인완료'
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                  : 'bg-slate-200 text-slate-700 border-slate-300'
-                              }`}
+                {/* Filter pills */}
+                <div className="flex items-center p-0.5 bg-slate-100 rounded-lg self-start sm:self-center">
+                  {(['대기', '전체', '완료', '반려'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setManualFilter(f)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                        manualFilter === f
+                          ? 'bg-white text-sky-700 shadow-2xs font-bold'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {displayedManualRequests.length === 0 ? (
+                <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  {manualFilter === '대기'
+                    ? '현재 대기 중인 수기 출퇴근 신청 건이 없습니다.'
+                    : '해당 조건의 수기 출퇴근 내역이 없습니다.'}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {displayedManualRequests.map((item) => {
+                    const staff = staffList.find((s) => s.id === item.staffId);
+                    const isPending = item.status === '승인대기';
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3.5 rounded-2xl border transition ${
+                          isPending
+                            ? 'bg-amber-50/50 border-amber-200/90 shadow-2xs'
+                            : item.status === '승인'
+                            ? 'bg-slate-50/80 border-slate-200'
+                            : 'bg-rose-50/40 border-slate-200 opacity-75'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs mt-0.5"
+                              style={{ backgroundColor: staff?.color || '#0284c7' }}
                             >
-                              {status}
-                            </span>
-                          </div>
+                              {item.staffName.slice(0, 1)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {item.staffName}
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  {item.staffRole} {staff ? `· ${staff.department}` : ''}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.2 rounded-full border ${
+                                    item.requestType === '출근'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : item.requestType === '퇴근'
+                                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                      : 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                                  }`}
+                                >
+                                  {item.requestType} 신청
+                                </span>
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                                    isPending
+                                      ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
+                                      : item.status === '승인'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              </div>
 
-                          <div className="font-bold text-slate-800 mt-1">
-                            [{item.type}] {item.title}
-                          </div>
-
-                          <div className="text-[11px] text-slate-600 mt-0.5">
-                            기간: <span className="font-semibold text-slate-800">{item.startDate}</span>
-                            {item.endDate !== item.startDate && ` ~ ${item.endDate}`}
-                          </div>
-
-                          {item.description && (
-                            <p className="text-[11px] text-slate-600 bg-white/70 p-2 rounded-xl mt-1 border border-slate-200/60">
-                              사유/메모: {item.description}
-                            </p>
-                          )}
-
-                          {staff && (
-                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                              <span>잔여 연차: {staff.totalLeaveDays - staff.usedLeaveDays}일</span>
-                              {item.approvedBy && (
-                                <>
-                                  <span>·</span>
-                                  <span>결재자: {item.approvedBy}</span>
-                                </>
-                              )}
-                              {item.rejectedReason && (
-                                <>
-                                  <span>·</span>
-                                  <span className="text-rose-600 font-semibold">
-                                    반려사유: {item.rejectedReason}
+                              <div className="text-xs font-extrabold text-slate-900 mt-1 flex flex-wrap items-center gap-2">
+                                <span>근무일: {item.date}</span>
+                                {item.requestedClockIn && (
+                                  <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">
+                                    신청 출근: {item.requestedClockIn}
                                   </span>
-                                </>
+                                )}
+                                {item.requestedClockOut && (
+                                  <span className="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded font-mono">
+                                    신청 퇴근: {item.requestedClockOut}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-[11px] text-slate-700 bg-white/80 p-2 rounded-xl mt-1.5 border border-slate-200/60">
+                                <strong>신청 사유:</strong> {item.reason}
+                                {item.details && (
+                                  <p className="text-slate-500 mt-0.5">{item.details}</p>
+                                )}
+                              </div>
+
+                              <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 flex-wrap">
+                                <span>신청 접수: {new Date(item.createdAt).toLocaleString('ko-KR')}</span>
+                                {item.reviewedBy && (
+                                  <>
+                                    <span>·</span>
+                                    <span>승인자: {item.reviewedBy}</span>
+                                  </>
+                                )}
+                                {item.rejectReason && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="text-rose-600 font-semibold">
+                                      반려사유: {item.rejectReason}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Approval / Reject Buttons */}
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            {isPending ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveManual(item.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-xs"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  승인 확정
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRejectingManualId(item.id)}
+                                  className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 active:scale-95 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  반려
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteManual(item.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                                title="신청 내역 삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Reject Reason Input Area */}
+                        {rejectingManualId === item.id && (
+                          <div className="mt-2.5 pt-2.5 border-t border-rose-200 flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              placeholder="반려 사유 입력 (예: 당일 미출근 확인, 시간 재확인 필요)"
+                              value={manualRejectReason}
+                              onChange={(e) => setManualRejectReason(e.target.value)}
+                              className="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRejectManual(item.id)}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shrink-0"
+                            >
+                              반려 확정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRejectingManualId(null);
+                                setManualRejectReason('');
+                              }}
+                              className="px-2 py-1.5 bg-slate-200 text-slate-700 rounded-xl text-xs shrink-0"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SECTION 1-B: 휴가/일정 승인 관리 */}
+          {approvalCategory === 'schedule' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <FileCheck className="w-4 h-4 text-sky-600" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    휴가 및 연차 일정 결재함
+                  </h3>
+                </div>
+
+                {/* Filter pills */}
+                <div className="flex items-center p-0.5 bg-slate-100 rounded-lg">
+                  {(['대기', '전체', '완료', '반려'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setApprovalFilter(f)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                        approvalFilter === f
+                          ? 'bg-white text-sky-700 shadow-2xs font-bold'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {displayedSchedules.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  {approvalFilter === '대기'
+                    ? '현재 대기 중인 휴가/일정 승인 건이 없습니다.'
+                    : '해당 조건의 내역이 없습니다.'}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {displayedSchedules.map((item) => {
+                    const staff = staffList.find((s) => s.id === item.staffId);
+                    const status = item.approvalStatus || '승인대기';
+                    const isPending = status === '승인대기';
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3.5 rounded-2xl border transition ${
+                          isPending
+                            ? 'bg-rose-50/50 border-rose-200/80'
+                            : status === '승인완료'
+                            ? 'bg-slate-50/70 border-slate-200'
+                            : 'bg-slate-100/60 border-slate-200 opacity-70'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs mt-0.5"
+                              style={{ backgroundColor: staff?.color || '#0284c7' }}
+                            >
+                              {staff?.name.slice(0, 1)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {staff?.name}
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  {staff?.role} · {staff?.department}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                                    status === '승인대기'
+                                      ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                                      : status === '승인완료'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : 'bg-slate-200 text-slate-700 border-slate-300'
+                                  }`}
+                                >
+                                  {status}
+                                </span>
+                              </div>
+
+                              <div className="font-bold text-slate-800 mt-1">
+                                [{item.type}] {item.title}
+                              </div>
+
+                              <div className="text-[11px] text-slate-600 mt-0.5">
+                                기간: <span className="font-semibold text-slate-800">{item.startDate}</span>
+                                {item.endDate !== item.startDate && ` ~ ${item.endDate}`}
+                              </div>
+
+                              {item.description && (
+                                <p className="text-[11px] text-slate-600 bg-white/70 p-2 rounded-xl mt-1 border border-slate-200/60">
+                                  사유/메모: {item.description}
+                                </p>
                               )}
+
+                              {staff && (
+                                <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                  <span>잔여 연차: {staff.totalLeaveDays - staff.usedLeaveDays}일</span>
+                                  {item.approvedBy && (
+                                    <>
+                                      <span>·</span>
+                                      <span>결재자: {item.approvedBy}</span>
+                                    </>
+                                  )}
+                                  {item.rejectedReason && (
+                                    <>
+                                      <span>·</span>
+                                      <span className="text-rose-600 font-semibold">
+                                        반려사유: {item.rejectedReason}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Approval Action Buttons */}
+                          {isPending && (
+                            <div className="flex flex-col gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handleApproveSchedule(item.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                승인
+                              </button>
+                              <button
+                                onClick={() => setRejectingScheduleId(item.id)}
+                                className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 active:scale-95 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                반려
+                              </button>
                             </div>
                           )}
                         </div>
-                      </div>
 
-                      {/* Approval Action Buttons */}
-                      {isPending && (
-                        <div className="flex flex-col gap-1.5 shrink-0">
-                          <button
-                            onClick={() => handleApproveSchedule(item.id)}
-                            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-xs"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            승인
-                          </button>
-                          <button
-                            onClick={() => setRejectingScheduleId(item.id)}
-                            className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 active:scale-95 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            반려
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Reject reason input prompt */}
-                    {rejectingScheduleId === item.id && (
-                      <div className="mt-2.5 pt-2.5 border-t border-rose-200 flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          placeholder="반려 사유 입력 (예: 당일 진료 인력 부족 등)"
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          className="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800"
-                        />
-                        <button
-                          onClick={() => handleRejectSchedule(item.id)}
-                          className="px-3 py-1.5 bg-rose-600 text-white font-bold rounded-xl text-xs shrink-0"
-                        >
-                          반려 확정
-                        </button>
-                        <button
-                          onClick={() => setRejectingScheduleId(null)}
-                          className="px-2 py-1.5 bg-slate-200 text-slate-700 rounded-xl text-xs shrink-0"
-                        >
-                          취소
-                        </button>
+                        {/* Reject reason input prompt */}
+                        {rejectingScheduleId === item.id && (
+                          <div className="mt-2.5 pt-2.5 border-t border-rose-200 flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              placeholder="반려 사유 입력 (예: 당일 진료 인력 부족 등)"
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              className="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800"
+                            />
+                            <button
+                              onClick={() => handleRejectSchedule(item.id)}
+                              className="px-3 py-1.5 bg-rose-600 text-white font-bold rounded-xl text-xs shrink-0"
+                            >
+                              반려 확정
+                            </button>
+                            <button
+                              onClick={() => setRejectingScheduleId(null)}
+                              className="px-2 py-1.5 bg-slate-200 text-slate-700 rounded-xl text-xs shrink-0"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================
+          SUB-TAB 2: 병원 Wi-Fi 공유기(AP) 관리 (출퇴근 인정 공유기)
+         ======================================================== */}
+      {activeSubTab === 'wifi' && (
+        <div className="space-y-4">
+          {/* Header Card */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Wifi className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3>치과 원내 출퇴근 인정 Wi-Fi 공유기 관리</h3>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      병원에 설치된 공유기 정보를 기반으로 직원의 원내 출퇴근을 자동 인식 및 인증합니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetWifi}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1 font-semibold text-xs transition active:scale-95"
+                  title="기본 치과 공유기 목록으로 복원"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  기본값 복원
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenAddWifi}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 font-bold text-xs shadow-xs transition active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  새 공유기 추가
+                </button>
+              </div>
+            </div>
+
+            {/* Explanatory banner */}
+            <div className="bg-sky-50 border border-sky-200/80 rounded-2xl p-3 text-sky-900 text-xs flex items-start gap-2.5">
+              <Radio className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed text-[11px]">
+                <strong>공유기 기반 출퇴근 인식 방식:</strong> 치과는 X-ray실 및 층간 납 차폐벽 등으로 인해
+                실내 GPS 수신이 불안정할 수 있습니다. 각 층 및 진료실별 설치된 공인 Wi-Fi AP를 등록하면,
+                직원이 병원에 들어와 Wi-Fi 신호에 연결되었을 때 부정 출퇴근 없이 안전하게 출퇴근이 기록됩니다.
+              </div>
+            </div>
+
+            {/* Search Filter */}
+            <div className="mt-3">
+              <input
+                type="text"
+                placeholder="공유기 SSID(이름), 설치 위치, MAC(BSSID) 검색..."
+                value={wifiSearchQuery}
+                onChange={(e) => setWifiSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          {/* Routers Grid / Cards */}
+          <div className="space-y-2.5">
+            {displayedWifiRouters.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-400">
+                등록된 공유기 정보가 없거나 검색 결과가 없습니다.
+              </div>
+            ) : (
+              displayedWifiRouters.map((router) => {
+                return (
+                  <div
+                    key={router.id}
+                    className={`bg-white rounded-2xl border p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                      router.isActive ? 'border-slate-200' : 'border-slate-200/60 opacity-60 bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                          router.isActive
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {router.isActive ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-slate-900 text-sm">
+                            {router.ssid}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              router.isActive
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {router.isActive ? '● 출퇴근 인정 활성' : '○ 차단 (비활성)'}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="font-bold text-sky-700">📍 {router.location}</span>
+                          {router.bssid && (
+                            <span className="text-slate-400 font-mono text-[11px]">
+                              BSSID: {router.bssid}
+                            </span>
+                          )}
+                          {router.ipRange && (
+                            <span className="text-slate-400 font-mono text-[11px]">
+                              IP: {router.ipRange}
+                            </span>
+                          )}
+                        </div>
+
+                        {router.description && (
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {router.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions: Toggle Active, Edit, Delete */}
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleWifiActive(router)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+                          router.isActive
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        {router.isActive ? '인증 ON' : '인증 OFF'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditWifi(router)}
+                        className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition"
+                        title="공유기 수정"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteWifi(router.id, router.ssid)}
+                        className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
+                        title="공유기 삭제"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 
@@ -1879,6 +2491,127 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
                   className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold shadow-sm"
                 >
                   {isSavingHoliday ? '저장 중...' : editingHoliday ? '수정 저장' : '등록 완료'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {/* --- MODAL 4: 치과 Wi-Fi 공유기 추가 / 수정 모달 --- */}
+      {showWifiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 pb-2 border-b border-slate-100 flex items-center gap-1.5">
+              <Wifi className="w-4 h-4 text-emerald-600" />
+              <span>{editingWifi ? '치과 공유기 정보 수정' : '새 출퇴근 인정 공유기(AP) 등록'}</span>
+            </h3>
+
+            <form onSubmit={handleSaveWifi} className="space-y-3">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
+                  공유기 SSID (Wi-Fi 네트워크 이름) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: DangsanWon_Staff_5G"
+                  value={wifiForm.ssid}
+                  onChange={(e) => setWifiForm({ ...wifiForm, ssid: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
+                  설치 위치 (원내 구역) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 2층 접수데스크, 3층 진료실, 4층 기공실 등"
+                  value={wifiForm.location}
+                  onChange={(e) => setWifiForm({ ...wifiForm, location: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs"
+                  required
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['2층 안내데스크', '3층 제1~3진료실', '치과 기공실', '원장실/휴게실'].map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => setWifiForm({ ...wifiForm, location: loc })}
+                      className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-0.5 rounded-md"
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
+                  BSSID / 기기 MAC 주소 (선택)
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 00:11:22:33:44:A1"
+                  value={wifiForm.bssid}
+                  onChange={(e) => setWifiForm({ ...wifiForm, bssid: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
+                  허용 내부 IP 대역
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 192.168.10.0/24"
+                  value={wifiForm.ipRange}
+                  onChange={(e) => setWifiForm({ ...wifiForm, ipRange: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 text-[11px]">
+                  설명 및 비고 (선택)
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 직원 스마트폰 전용 5GHz 고속 AP"
+                  value={wifiForm.description}
+                  onChange={(e) => setWifiForm({ ...wifiForm, description: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="wifiActive"
+                  checked={wifiForm.isActive}
+                  onChange={(e) => setWifiForm({ ...wifiForm, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600"
+                />
+                <label htmlFor="wifiActive" className="text-xs text-slate-700 select-none font-bold">
+                  출퇴근 인식 허용 (활성화)
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWifiModal(false)}
+                  className="flex-1 py-2 bg-slate-100 rounded-xl font-bold text-slate-700"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingWifi}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-sm"
+                >
+                  {isSavingWifi ? '저장 중...' : editingWifi ? '수정 저장' : '공유기 등록'}
                 </button>
               </div>
             </form>
