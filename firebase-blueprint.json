@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "Staff": {
+      "title": "Staff",
+      "description": "Clinic staff member account created by admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 50 },
+        "role": { "type": "string" },
+        "department": { "type": "string" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "color": { "type": "string" },
+        "totalLeaveDays": { "type": "number" },
+        "usedLeaveDays": { "type": "number" },
+        "joinDate": { "type": "string" },
+        "avatarIcon": { "type": "string" },
+        "linkedUid": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "phone"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily staff attendance record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "staffId": { "type": "string" },
+        "date": { "type": "string" },
+        "clockInTime": { "type": "string" },
+        "clockOutTime": { "type": "string" },
+        "status": { "type": "string" },
+        "note": { "type": "string" },
+        "location": { "type": "string" },
+        "authMethod": { "type": "string" },
+        "wifiSsid": { "type": "string" }
+      },
+      "required": ["id", "staffId", "date", "status"]
+    },
+    "ClinicWifiRouter": {
+      "title": "ClinicWifiRouter",
+      "description": "Authorized clinic Wi-Fi router for clock-in verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ssid": { "type": "string" },
+        "location": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "ssid", "location"]
+    },
+    "ManualAttendanceRequest": {
+      "title": "ManualAttendanceRequest",
+      "description": "Manual attendance request submitted when phone is missing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "staffId": { "type": "string" },
+        "staffName": { "type": "string" },
+        "date": { "type": "string" },
+        "requestType": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "staffId", "date", "reason", "status"]
+    },
+    "ScheduleEvent": {
+      "title": "ScheduleEvent",
+      "description": "Staff leave or duty schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "staffId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "approvalStatus": { "type": "string" }
+      },
+      "required": ["id", "staffId", "type", "startDate"]
+    },
+    "ClinicNotice": {
+      "title": "ClinicNotice",
+      "description": "Notices and handover messages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "staffId": { "type": "string" },
+        "staffName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "staffId", "content"]
+    },
+    "ClinicHoliday": {
+      "title": "ClinicHoliday",
+      "description": "Holidays and special opening schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "date", "name", "type"]
+    },
+    "TodoItem": {
+      "title": "TodoItem",
+      "description": "Shared clinic to-do item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string", "maxLength": 200 },
+        "completed": { "type": "boolean" },
+        "assignedTo": { "type": "string" },
+        "assignedName": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "priority": { "type": "string" }
+      },
+      "required": ["id", "text", "completed", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/staff/{staffId}": {
+      "schema": "Staff",
+      "description": "Staff accounts"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance records"
+    },
+    "/wifiRouters/{routerId}": {
+      "schema": "ClinicWifiRouter",
+      "description": "Wifi routers"
+    },
+    "/manualAttendanceRequests/{requestId}": {
+      "schema": "ManualAttendanceRequest",
+      "description": "Manual attendance requests"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "ScheduleEvent",
+      "description": "Schedules"
+    },
+    "/notices/{noticeId}": {
+      "schema": "ClinicNotice",
+      "description": "Notices"
+    },
+    "/holidays/{holidayId}": {
+      "schema": "ClinicHoliday",
+      "description": "Holidays"
+    },
+    "/todos/{todoId}": {
+      "schema": "TodoItem",
+      "description": "Shared to-do list"
+    }
+  }
+}

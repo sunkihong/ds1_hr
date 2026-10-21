@@ -41,7 +41,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     },
     {
       id: 'admin' as TabType,
-      label: '최고관리자',
+      label: '관리자',
       icon: Users,
       badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined,
     },

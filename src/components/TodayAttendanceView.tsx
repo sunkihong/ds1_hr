@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { clockIn, clockOut } from '../api';
 import { ManualAttendanceModal } from './ManualAttendanceModal';
+import { WifiVerifyModal } from './WifiVerifyModal';
 import {
   Clock,
   LogIn,
@@ -60,6 +61,7 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [wifiModalAction, setWifiModalAction] = useState<'출근' | '퇴근' | null>(null);
 
   // Active hospital Wi-Fi router selection (simulating/detecting presence in the clinic)
   const activeRouters = wifiRouters.filter((r) => r.isActive);
@@ -119,27 +121,24 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
   const pendingManualReq = userTodayManualRequests.find((m) => m.status === '승인대기');
   const approvedManualReq = userTodayManualRequests.find((m) => m.status === '승인');
 
-  const handleClockIn = async () => {
+  const handleClockIn = () => {
     if (!currentStaff) return;
+    setWifiModalAction('출근');
+  };
 
-    if (!isWifiConnected) {
-      const proceed = confirm(
-        '⚠️ 현재 병원 공인 Wi-Fi에 연결되어 있지 않습니다.\n(휴대폰 미소지 또는 Wi-Fi 연결 불가 시에는 [수기 출퇴근 신청]을 이용하는 것을 권장합니다.)\n\n계속 진행하시겠습니까?'
-      );
-      if (!proceed) return;
-    }
-
+  const executeClockIn = async (router: ClinicWifiRouter | null) => {
+    setWifiModalAction(null);
     setIsSubmitting(true);
     setActionSuccessMsg(null);
     try {
       const res = await clockIn(
-        currentStaff.id,
+        currentStaff!.id,
         customNote,
-        currentWifi ? `${currentWifi.location} (${currentWifi.ssid})` : '원외/수기확인',
+        router ? `${router.location} (${router.ssid})` : '원외/수기확인',
         {
-          authMethod: isWifiConnected ? 'wifi' : 'unverified',
-          wifiSsid: currentWifi?.ssid,
-          wifiBssid: currentWifi?.bssid,
+          authMethod: router ? 'wifi' : 'unverified',
+          wifiSsid: router?.ssid,
+          wifiBssid: router?.bssid,
         }
       );
       setActionSuccessMsg(res.message);
@@ -153,16 +152,20 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
     }
   };
 
-  const handleClockOut = async () => {
+  const handleClockOut = () => {
     if (!currentStaff) return;
-    if (!confirm('퇴근을 기록하시겠습니까?')) return;
+    setWifiModalAction('퇴근');
+  };
+
+  const executeClockOut = async (router: ClinicWifiRouter | null) => {
+    setWifiModalAction(null);
     setIsSubmitting(true);
     setActionSuccessMsg(null);
     try {
-      const res = await clockOut(currentStaff.id, customNote, {
-        authMethod: isWifiConnected ? 'wifi' : 'unverified',
-        wifiSsid: currentWifi?.ssid,
-        wifiBssid: currentWifi?.bssid,
+      const res = await clockOut(currentStaff!.id, customNote, {
+        authMethod: router ? 'wifi' : 'unverified',
+        wifiSsid: router?.ssid,
+        wifiBssid: router?.bssid,
       });
       setActionSuccessMsg(res.message);
       setCustomNote('');
@@ -195,77 +198,33 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
     <div className="space-y-4 pb-20">
       {/* Today Special Holiday / Operating Alert Banner */}
       {todayHoliday && (
-        <div
-          className={`rounded-3xl p-4 shadow-sm border flex items-start gap-3 ${
-            todayHoliday.type === '반일진료'
-              ? 'bg-amber-500 text-white border-amber-600'
-              : todayHoliday.type === '전체휴진'
-              ? 'bg-rose-500 text-white border-rose-600'
-              : 'bg-emerald-600 text-white border-emerald-700'
-          }`}
-        >
-          <div className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 text-lg font-bold">
+        <div className="bg-slate-900 text-white rounded-3xl p-4 shadow-sm border border-slate-800 flex items-center gap-3">
+          <div className="shrink-0 text-xl">
             {todayHoliday.type === '반일진료' ? '☀️' : todayHoliday.type === '전체휴진' ? '🌴' : '🏥'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-black uppercase tracking-wider bg-black/15 px-2 py-0.5 rounded-full">
-                치과 진료일정 안내
-              </span>
-              <span className="text-xs font-extrabold">
-                {todayHoliday.name} · {todayHoliday.type}
-              </span>
-            </div>
-            <p className="text-xs text-white/95 mt-1 leading-relaxed font-medium">
-              {todayHoliday.type === '반일진료'
-                ? `공휴일이지만 치과 집중 반일진료가 운영됩니다 (${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '13:30'}). 오후 진료는 없습니다.`
-                : todayHoliday.type === '전체휴진'
-                ? '오늘은 당산원치과 전체 휴진일입니다.'
-                : `오늘은 치과 정상진료(${todayHoliday.openTime || '09:30'} ~ ${todayHoliday.closeTime || '18:30'}) 운영일입니다.`}
-              {todayHoliday.memo ? ` (${todayHoliday.memo})` : ''}
-            </p>
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">진료 안내</div>
+            <div className="text-sm font-bold truncate">{todayHoliday.name}</div>
           </div>
         </div>
       )}
 
       {/* Manual Request Status Banner (If Staff has a pending or approved request today) */}
       {pendingManualReq && (
-        <div className="bg-amber-50 border border-amber-300 rounded-3xl p-4 shadow-xs flex items-start gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center shrink-0 font-bold">
-            <Hourglass className="w-5 h-5 text-amber-700 animate-spin-slow" />
+        <div className="bg-amber-100 border border-amber-200 rounded-3xl p-4 flex items-center gap-3">
+          <Hourglass className="w-5 h-5 text-amber-700 shrink-0 animate-spin-slow" />
+          <div className="flex-1 min-w-0 text-xs font-medium text-amber-900 truncate">
+            수기 출퇴근 신청 진행 중 ({pendingManualReq.requestedClockIn || pendingManualReq.requestedClockOut})
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                수기 출퇴근 신청 진행중
-              </span>
-              <span className="text-xs font-extrabold text-amber-950">
-                {pendingManualReq.requestType} 신청 (
-                {pendingManualReq.requestedClockIn || pendingManualReq.requestedClockOut})
-              </span>
-            </div>
-            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-              <strong>사유:</strong> {pendingManualReq.reason}
-              {pendingManualReq.details ? ` (${pendingManualReq.details})` : ''} · 관리자(원장/실장)가
-              승인하면 출퇴근 상태가 즉시 자동 반영됩니다.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowManualModal(true)}
-            className="text-xs text-amber-900 font-bold underline shrink-0 mt-1"
-          >
-            내역 확인
-          </button>
+          <button onClick={() => setShowManualModal(true)} className="text-xs font-bold underline shrink-0">확인</button>
         </div>
       )}
 
       {approvedManualReq && !pendingManualReq && (
-        <div className="bg-emerald-50 border border-emerald-300 rounded-3xl p-3.5 shadow-xs flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <div className="flex-1 min-w-0 text-xs text-emerald-900">
-            <span className="font-extrabold mr-1">[수기 출퇴근 승인 완료]</span>
-            오늘 제출하신 수기 출퇴근 신청이 관리자에 의해 승인되었습니다. (
-            {approvedManualReq.requestedClockIn || approvedManualReq.requestedClockOut})
+        <div className="bg-emerald-100 border border-emerald-200 rounded-3xl p-4 flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+          <div className="flex-1 min-w-0 text-xs font-medium text-emerald-900 truncate">
+            수기 출퇴근 승인 완료 ({approvedManualReq.requestedClockIn || approvedManualReq.requestedClockOut})
           </div>
         </div>
       )}
@@ -488,7 +447,7 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
               }`}
             >
               <LogIn className="w-4 h-4" />
-              {clockInTime ? '재출근 (와이파이)' : '출근하기 (와이파이)'}
+              {clockInTime ? '재출근' : '출근하기'}
             </button>
 
             {/* Clock-out Button */}
@@ -502,7 +461,7 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
               }`}
             >
               <LogOut className="w-4 h-4" />
-              퇴근하기 (와이파이)
+              퇴근하기
             </button>
           </div>
 
@@ -569,34 +528,17 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
 
       {/* 3. Today's Clinic KPI Status Ring/Grid */}
       <div className="grid grid-cols-4 gap-2 text-center">
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[11px] text-slate-500 font-medium">근무 중</div>
-          <div className="text-lg font-extrabold text-emerald-600 tabular-nums">
-            {workingCount}
-            <span className="text-xs font-normal text-slate-400">/{totalStaffCount}</span>
+        {[
+          { label: '근무', val: workingCount, color: 'text-emerald-600' },
+          { label: '휴가', val: leaveCount, color: 'text-purple-600' },
+          { label: '퇴근', val: completedCount, color: 'text-slate-700' },
+          { label: '출근전', val: notYetCount, color: 'text-sky-600' },
+        ].map((kpi) => (
+          <div key={kpi.label} className="bg-white p-2 rounded-2xl border border-slate-100">
+            <div className="text-[10px] text-slate-500">{kpi.label}</div>
+            <div className={`text-md font-bold ${kpi.color}`}>{kpi.val}</div>
           </div>
-        </div>
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[11px] text-slate-500 font-medium">휴가/반차</div>
-          <div className="text-lg font-extrabold text-purple-600 tabular-nums">
-            {leaveCount}
-            <span className="text-xs font-normal text-slate-400">명</span>
-          </div>
-        </div>
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[11px] text-slate-500 font-medium">퇴근 완료</div>
-          <div className="text-lg font-extrabold text-slate-700 tabular-nums">
-            {completedCount}
-            <span className="text-xs font-normal text-slate-400">명</span>
-          </div>
-        </div>
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-[11px] text-slate-500 font-medium">출근 전</div>
-          <div className="text-lg font-extrabold text-sky-600 tabular-nums">
-            {notYetCount}
-            <span className="text-xs font-normal text-slate-400">명</span>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* 4. All 10 Dental Staff Real-Time Attendance Board */}
@@ -709,6 +651,18 @@ export const TodayAttendanceView: React.FC<TodayAttendanceViewProps> = ({
           })}
         </div>
       </div>
+
+      {wifiModalAction && (
+        <WifiVerifyModal
+          actionType={wifiModalAction}
+          wifiRouters={wifiRouters}
+          onConfirm={(router) => {
+            if (wifiModalAction === '출근') executeClockIn(router);
+            else executeClockOut(router);
+          }}
+          onClose={() => setWifiModalAction(null)}
+        />
+      )}
     </div>
   );
 };

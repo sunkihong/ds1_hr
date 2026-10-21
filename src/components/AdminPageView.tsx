@@ -2496,6 +2496,8 @@ export const AdminPageView: React.FC<AdminPageViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+      
       {/* --- MODAL 4: 치과 Wi-Fi 공유기 추가 / 수정 모달 --- */}
       {showWifiModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
